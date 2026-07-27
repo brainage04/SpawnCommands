@@ -1,0 +1,24 @@
+{
+	"schemaVersion": 1,
+	"id": "${mod_id}",
+	"version": "${mod_version}",
+	"name": "${mod_name}",
+	"description": "Adds world, personal, and shared player spawn commands.",
+	"authors": ["brainage04"],
+	"contact": {
+		"homepage": "https://github.com/brainage04/SpawnCommands",
+		"sources": "https://github.com/brainage04/SpawnCommands"
+	},
+	"license": "MIT",
+	"icon": "assets/spawncommands/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": ["io.github.brainage04.spawncommands.fabric.SpawnCommandsFabric"]
+	},
+	"depends": {
+		"fabricloader": ">=${loader_version}",
+		"minecraft": "~${minecraft_version}",
+		"java": ">=${java_version}",
+		"fabric-api": "*"
+	}
+}

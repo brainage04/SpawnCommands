@@ -1,0 +1,7 @@
+{
+  "environment": "minecraft:default",
+  "structure": "minecraft:empty",
+  "max_ticks": 20,
+  "type": "minecraft:function",
+  "function": "spawncommands:all_spawn_commands_are_registered"
+}

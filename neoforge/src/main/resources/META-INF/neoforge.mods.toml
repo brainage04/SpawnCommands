@@ -1,0 +1,24 @@
+modLoader="javafml"
+loaderVersion="[11,)"
+license="MIT"
+
+[[mods]]
+modId="spawncommands"
+version="${version}"
+displayName="SpawnCommands"
+authors="brainage04"
+description='''Adds world, personal, and shared player spawn commands.'''
+
+[[dependencies.spawncommands]]
+modId="neoforge"
+type="required"
+versionRange="[${neoforge_version},26.3)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.spawncommands]]
+modId="minecraft"
+type="required"
+versionRange="[${minecraft_version},26.3)"
+ordering="NONE"
+side="BOTH"
