@@ -6,6 +6,7 @@ license="MIT"
 modId="spawncommands"
 version="${version}"
 displayName="SpawnCommands"
+logoFile="assets/spawncommands/icon.png"
 authors="brainage04"
 description='''Adds world, personal, and shared player spawn commands.'''
 
