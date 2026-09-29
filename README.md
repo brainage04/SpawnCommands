@@ -12,7 +12,7 @@ SpawnCommands adds server-side commands for world, personal, and explicitly shar
 | `/spawnshare <players>` | Grants the selected online players access to your personal spawn. |
 | `/spawnshare revoke <players>` | Revokes that access. |
 
-Personal spawn points continue to use vanilla beds, respawn anchors, dimensions, yaw, pitch, and safe-position resolution. The mod does not create a second spawn system.
+Personal spawn points continue to use vanilla beds, respawn anchors, dimensions, yaw, and pitch. The mod does not create a second spawn system. `/myspawn` and `/spawnof` land where a vanilla respawn would: the stand-up position beside a bed or respawn anchor, or exactly on a `/spawnpoint` position. The `respawn_radius` gamerule's random spread belongs to the world spawn and never moves a personal spawn. Teleporting does not use a respawn anchor charge. If the bed or anchor is gone or obstructed, the command fails instead of falling back to the world spawn.
 
 Spawn sharing is persistent and owner-scoped. Granting access to one player's spawn never grants access to another player's spawn.
 

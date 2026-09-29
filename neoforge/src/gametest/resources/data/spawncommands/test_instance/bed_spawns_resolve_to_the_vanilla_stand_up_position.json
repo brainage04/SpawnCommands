@@ -1,0 +1,7 @@
+{
+  "environment": "minecraft:default",
+  "structure": "minecraft:empty",
+  "max_ticks": 20,
+  "type": "minecraft:function",
+  "function": "spawncommands:bed_spawns_resolve_to_the_vanilla_stand_up_position"
+}
