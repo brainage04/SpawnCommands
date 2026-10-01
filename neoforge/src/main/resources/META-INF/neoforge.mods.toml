@@ -1,6 +1,7 @@
 modLoader="javafml"
 loaderVersion="[11,)"
 license="MIT"
+issueTrackerURL="https://github.com/brainage04/SpawnCommands/issues"
 
 [[mods]]
 modId="spawncommands"
@@ -9,6 +10,7 @@ displayName="SpawnCommands"
 iconFile="assets/spawncommands/icon.png"
 authors="brainage04"
 description='''Adds world, personal, and shared player spawn commands.'''
+displayURL="https://github.com/brainage04/SpawnCommands"
 
 [[dependencies.spawncommands]]
 modId="neoforge"
