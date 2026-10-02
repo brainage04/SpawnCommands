@@ -15,13 +15,13 @@ displayURL="https://github.com/brainage04/SpawnCommands"
 [[dependencies.spawncommands]]
 modId="neoforge"
 type="required"
-versionRange="[${neoforge_version},26.3)"
+versionRange="[${neoforge_version},)"
 ordering="NONE"
 side="BOTH"
 
 [[dependencies.spawncommands]]
 modId="minecraft"
 type="required"
-versionRange="[${minecraft_version},26.3)"
+versionRange="${minecraft_version_range}"
 ordering="NONE"
 side="BOTH"

@@ -2,11 +2,15 @@
 
 ## What this is
 
-The mod's icon: `icon.png` — 340x340 RGB PNG, 2 485 bytes,
-sha256 `8feea9f46190f7f66bc84bef2091104b77486cdd96da58de43d01210aeeeef73`.
+The mod's icon: `icon.png` — 512x512 RGBA PNG, 3 807 bytes,
+sha256 `808b6a3ca5f9fea93dbb4910321324edaf8077af2b88944b622e9f8bfb6e0297`.
 
-It is a real in-game screenshot of the mod's `/spawn` tab-completion, cropped to a square at
-native GUI scale 4. No resize, no resampling, no interpolation, no compositing, no padding.
+It is a real in-game screenshot of the mod's `/spawn` tab-completion: a 340x340 square crop
+captured at GUI scale 4, reduced to its native 85x85 GUI pixels, enlarged 6x with NEAREST to
+510x510 and centred on a transparent 512x512 canvas (1 px margin). No interpolation, no
+compositing. The mod ships 128x128 LANCZOS reductions of `icon.png` at
+`common/src/main/resources/assets/spawncommands/icon.png` and
+`fabric/src/gametest/resources/assets/spawncommands/icon.png`.
 
 ## How it was made
 
@@ -29,13 +33,21 @@ native GUI scale 4. No resize, no resampling, no interpolation, no compositing, 
 The client completes `/spawn` to `/spawnof` and draws the completions `spawnof` (selected,
 yellow), `spawnpoint` and `spawnshare` above the input line.
 
-The delivered image is the exact integer crop `(0, 1820, 340, 2160)` of
-`frames/spawncommands-spawn-wide-full.png`. Verified while creating this provenance: cropping
-the shipped frame to that box reproduces `icon.png` byte for byte, and `verify.py` had already
+The capture crop is the exact integer crop `(0, 1820, 340, 2160)` of
+`frames/spawncommands-spawn-wide-full.png` (340x340 RGB, sha256 `8feea9f4…`; until 2026-10-02
+it was shipped as `icon.png` itself). Verified while creating this provenance: cropping the
+shipped frame to that box reproduces that crop byte for byte, and `verify.py` had already
 asserted the same property against the session's own copy in `verification.json`
 (`exactSourceCrop: true`, file sha256 `8feea9f4…`).
 
-Layout inside the delivered image (all measured, native pixels): the completion panel occupies
+**Native-scale enlargement (2026-10-02).** The icon rule is square, a power of two, 512 or
+1024 px. The crop is pixel art: 11 colours, and every 4x4 block (GUI scale 4, aligned with the
+crop) is a single colour. `native_scale.py` takes each block's colour to recover the native
+85x85 image, enlarges it by the largest integer factor that fits 512 (6x, 510x510) with
+NEAREST, and centres it on a transparent 512x512 canvas. A LANCZOS 340→512 resize was
+rejected because it blurs every GUI pixel edge.
+
+Layout inside the capture crop (all measured, crop pixels): the completion panel occupies
 `x 36..279, y 136..279` (244x144 px, three 48 px rows, its own dark background included), so
 the sky margins are 36 px left and 60 px right of the panel. The native chat input line below
 the panel is included; its full-width background bar runs to the right edge of the crop,
@@ -47,7 +59,8 @@ exactly as in the source frame.
 |---|---|
 | `manifest.json` | Round-3 delivery record for the three crops2 icons, including this one's measured panel box and crop box |
 | `frames/spawncommands-spawn-wide-full.png` | **The native 5120x2160 F2 screenshot this icon is cropped from** |
-| `crop.py` | **The script that writes the three 340x340 crops** — `make_crop("spawncommands", …)` is the one that produced this file, and it also enumerates every feasible 340-wide crop to prove the minimum asymmetry |
+| `native_scale.py` | **The script that writes `icon.png`** from the frame and crop box (native 85x85 recovery, 6x NEAREST, centred on 512x512) and the two shipped 128x128 copies |
+| `crop.py` | **The script that writes the three 340x340 crops** — `make_crop("spawncommands", …)` is the one that produced the capture crop, and it also enumerates every feasible 340-wide crop to prove the minimum asymmetry |
 | `capture_scene.py` | The capture driver: scene verification, chat clearing, typing, F2, screenshot copy |
 | `prepare.py` | Builds this session's runtime from the BrainageHUD capture world (world, configs, options, argfile, launcher) |
 | `measure.py` | Ink/panel measurement of the native autocomplete band, with the per-entry glyph-line boxes |
@@ -80,7 +93,7 @@ python3 capture_scene.py capture spawncommands-spawn '/spawn'
 python3 crop.py && python3 verify.py                   # 340x340 crops + verification
 ```
 
-`crop.py` writes all three crops and the two report files together; the delivered file is the
+`crop.py` writes all three crops and the two report files together; the capture crop is the
 one it names `spawncommands-autocomplete-square.png`, i.e. exactly:
 
 ```sh
@@ -89,6 +102,12 @@ from PIL import Image
 Image.open('frames/spawncommands-spawn-wide-full.png').convert('RGB') \
      .crop((0, 1820, 340, 2160)).save('spawncommands-autocomplete-square.png')
 PY
+```
+
+Then write `icon.png` and the shipped copies (Pillow 12.3.0, from `docs/icon/provenance`):
+
+```sh
+python3 native_scale.py    # prints: native (85, 85), 0 tied blocks, x6 -> (510, 510) centred on 512x512
 ```
 
 Prerequisites not shipped: the Minecraft 26.2 client, Fabric Loader and the mod jars named in
