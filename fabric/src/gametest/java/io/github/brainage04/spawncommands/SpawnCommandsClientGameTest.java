@@ -66,19 +66,19 @@ public final class SpawnCommandsClientGameTest implements FabricClientGameTest {
 					ServerPlayer player = minecraftServer.getPlayerList().getPlayers().getFirst();
 					player.teleportTo(player.getX() + 10.0D, player.getY(), player.getZ());
 				});
-				runCommand(context, "spawnof @s");
+				runCommand(context, "spawnof " + context.computeOnClient(client -> client.player.getName().getString()));
 				context.waitTicks(20);
 				server.runOnServer(minecraftServer -> {
 					ServerPlayer player = minecraftServer.getPlayerList().getPlayers().getFirst();
 					if (!player.blockPosition().equals(player.getRespawnConfig().respawnData().pos())) {
-						throw new AssertionError("/spawnof @s must allow access to your own spawn.");
+						throw new AssertionError("/spawnof must allow access to your own spawn.");
 					}
 				});
 				ClientGameTestRecorder.showStep(
 						context,
 						"spawncommands.sharing",
 						"Your own spawn",
-						"/spawnof @s lets you visit your own spawn without sharing it"
+						"/spawnof <your name> lets you visit your own spawn without sharing it"
 				);
 				context.waitTicks(50);
 			} finally {

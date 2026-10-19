@@ -1,6 +1,7 @@
 package io.github.brainage04.spawncommands.gametest;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import net.minecraft.commands.CommandSourceStack;
 import io.github.brainage04.spawncommands.SpawnAccessData;
 import io.github.brainage04.spawncommands.SpawnTeleportService;
 import java.util.List;
@@ -167,27 +168,30 @@ public final class SpawnCommandsGameTests {
 		ServerPlayer owner = helper.makeMockServerPlayerInLevel();
 		ServerPlayer guest = helper.makeMockServerPlayerInLevel();
 		var server = helper.getLevel().getServer();
-		var online = server.getPlayerList().getPlayersByUUID();
-		online.put(owner.getUUID(), owner);
-		online.put(guest.getUUID(), guest);
+		String ownerTag = "spawncommands-owner-" + owner.getUUID();
+		String guestTag = "spawncommands-guest-" + guest.getUUID();
+		owner.addTag(ownerTag);
+		guest.addTag(guestTag);
+		var ownerSource = owner.createCommandSourceStack().withPermission(server.createCommandSourceStack().permissions());
+		var guestSource = guest.createCommandSourceStack().withPermission(server.createCommandSourceStack().permissions());
 		SpawnAccessData access = SpawnAccessData.get(server);
 		BlockPos destination = helper.absolutePos(new BlockPos(3, 2, 3));
 		owner.setRespawnPosition(new ServerPlayer.RespawnConfig(
 				LevelData.RespawnData.of(helper.getLevel().dimension(), destination, 75.0F, 12.0F), true), false);
-		String target = owner.getUUID().toString();
-		String guests = guest.getUUID().toString();
+		String target = "@a[tag=" + ownerTag + ",limit=1]";
+		String guests = "@a[tag=" + guestTag + "]";
 		try {
 			Vec3 initial = guest.position();
-			helper.assertTrue(execute(guest, "spawnof " + target) == 0, "Unshared /spawnof must fail");
+			helper.assertTrue(execute(guestSource, "spawnof " + target) == 0, "Unshared /spawnof must fail");
 			helper.assertTrue(guest.position().equals(initial), "Denied access must not move the guest");
-			helper.assertTrue(execute(owner, "spawnshare " + guests) == 1, "/spawnshare must grant access");
-			helper.assertTrue(execute(owner, "spawnshare " + guests) == 0, "Repeated grants must not add access twice");
-			helper.assertTrue(execute(guest, "spawnof " + target) == 1, "Shared /spawnof must succeed");
+			helper.assertTrue(execute(ownerSource, "spawnshare " + guests) == 1, "/spawnshare must grant access");
+			helper.assertTrue(execute(ownerSource, "spawnshare " + guests) == 0, "Repeated grants must not add access twice");
+			helper.assertTrue(execute(guestSource, "spawnof " + target) == 1, "Shared /spawnof must succeed");
 			helper.assertTrue(guest.blockPosition().equals(destination), "The guest must land at the owner's spawn");
 			helper.assertTrue(guest.getYRot() == 75.0F && guest.getXRot() == 12.0F, "Spawn rotation must be preserved");
-			helper.assertTrue(execute(owner, "spawnshare revoke " + guests) == 1, "Revocation must remove access");
+			helper.assertTrue(execute(ownerSource, "spawnshare revoke " + guests) == 1, "Revocation must remove access");
 			Vec3 afterTeleport = guest.position();
-			helper.assertTrue(execute(guest, "spawnof " + target) == 0, "Revoked /spawnof must fail");
+			helper.assertTrue(execute(guestSource, "spawnof " + target) == 0, "Revoked /spawnof must fail");
 			helper.assertTrue(guest.position().equals(afterTeleport), "Revoked access must not move the guest");
 			helper.assertTrue(execute(owner, "myspawn") == 1, "/myspawn must execute for a player");
 			helper.assertTrue(execute(guest, "spawn") == 1, "/spawn must execute for a player");
@@ -199,8 +203,8 @@ public final class SpawnCommandsGameTests {
 			}
 		} finally {
 			access.revoke(owner.getUUID(), List.of(guest.getUUID()));
-			online.remove(owner.getUUID(), owner);
-			online.remove(guest.getUUID(), guest);
+			owner.removeTag(ownerTag);
+			guest.removeTag(guestTag);
 		}
 		helper.succeed();
 	}
@@ -239,8 +243,12 @@ public final class SpawnCommandsGameTests {
 	}
 
 	private static int execute(ServerPlayer player, String command) {
+		return execute(player.createCommandSourceStack(), command);
+	}
+
+	private static int execute(CommandSourceStack source, String command) {
 		try {
-			return player.level().getServer().getCommands().getDispatcher().execute(command, player.createCommandSourceStack());
+			return source.getServer().getCommands().getDispatcher().execute(command, source);
 		} catch (CommandSyntaxException exception) {
 			throw new AssertionError("Could not execute /" + command, exception);
 		}

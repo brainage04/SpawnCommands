@@ -52,3 +52,5 @@ Remaining boundaries: the codec is tested, but a full server restart and on-disk
 Both loader entrypoints register the same common commands. Saved access data belongs to the server's Overworld storage rather than static process state. Command and saved-data mutations run on the server thread; there are no mod-owned threads, listeners needing shutdown, file handles or other resources.
 
 Command feedback is English literal text, not untranslated keys. Localising it and replacing `player(s)` are presentation choices left unchanged.
+
+Command fixtures use tagged player selectors with an operator source because vanilla player arguments reject raw UUIDs and selectors require permission. The connected-client scenario uses the player's name, as ordinary players do.
