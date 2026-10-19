@@ -1,41 +1,37 @@
 # SpawnCommands
 
-SpawnCommands adds server-side commands for world, personal, and explicitly shared spawn points.
-
-## Commands
-
-| Command | Behavior |
-| --- | --- |
-| `/spawn` | Teleports you to the world's configured spawn. |
-| `/myspawn` | Teleports you to your vanilla personal respawn point. |
-| `/spawnof <player>` | Teleports you to an online player's personal spawn if they shared access with you. |
-| `/spawnshare <players>` | Grants the selected online players access to your personal spawn. |
-| `/spawnshare revoke <players>` | Revokes that access. |
+SpawnCommands adds server-side commands for world, personal, and explicitly shared spawn points on Fabric and NeoForge for Minecraft 26.2.
 
 Personal spawn points continue to use vanilla beds, respawn anchors, dimensions, yaw, and pitch. The mod does not create a second spawn system. `/myspawn` and `/spawnof` land where a vanilla respawn would: the stand-up position beside a bed or respawn anchor, or exactly on a `/spawnpoint` position. The `respawn_radius` gamerule's random spread belongs to the world spawn and never moves a personal spawn. Teleporting does not use a respawn anchor charge. If the bed or anchor is gone or obstructed, the command fails instead of falling back to the world spawn.
 
-Spawn sharing is persistent and owner-scoped. Granting access to one player's spawn never grants access to another player's spawn.
+## Features
 
-## Loaders and installation
+- World and personal spawn commands.
+- Spawn sharing is persistent and owner-scoped. Granting access to one player's spawn never grants access to another player's spawn.
 
-Fabric and NeoForge builds are provided for Minecraft 26.2.
+## Getting started
 
-Install exactly one matching JAR on the server: the Fabric JAR with Fabric API, or the NeoForge JAR with NeoForge. Vanilla clients can join without installing the mod.
+- Fabric Loader 0.19.3 or newer with Fabric API, or NeoForge 26.2.0.88 or newer.
+- Install exactly one matching JAR on the server: the Fabric JAR with Fabric API, or the NeoForge JAR with NeoForge.
 
-## Development
+## Commands
 
-Build both loader artifacts:
+- `/spawn` - teleports you to the world's configured spawn.
+- `/myspawn` - teleports you to your vanilla personal respawn point.
+- `/spawnof <player>` - teleports you to an online player's personal spawn if they shared access with you.
+- `/spawnshare <players>` - grants the selected online players access to your personal spawn.
+- `/spawnshare revoke <players>` - revokes that access.
 
-```shell
-./gradlew build
-```
+## Configuration
 
-Run command registration, teleport, and access-control GameTests on both loaders:
+No configuration yet.
 
-```shell
-./gradlew runAllGameTests
-```
+## Compatibility
 
-The project was initialized from [ModernMinecraftModTemplate](https://github.com/brainage04/ModernMinecraftModTemplate) and uses [FabricModdingConventions](https://github.com/brainage04/FabricModdingConventions) for shared build, GameTest, recording, and publishing conventions.
+Vanilla clients can join without installing the mod.
 
-Release automation is documented in [docs/RELEASE.md](docs/RELEASE.md). Optional Modrinth publishing is documented in [docs/MODRINTH.md](docs/MODRINTH.md).
+## Documentation
+
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) - build and GameTest commands.
+- [docs/RELEASE.md](docs/RELEASE.md) - release automation.
+- [docs/MODRINTH.md](docs/MODRINTH.md) - optional Modrinth publishing.
