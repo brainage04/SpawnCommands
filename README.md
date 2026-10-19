@@ -16,7 +16,7 @@ Personal spawn points continue to use vanilla beds, respawn anchors, dimensions,
 
 ## Commands
 
-- `/spawn` - teleports you to the world's configured spawn.
+- `/spawn` - teleports you to the world's configured spawn dimension, position and rotation.
 - `/myspawn` - teleports you to your vanilla personal respawn point.
 - `/spawnof <player>` - teleports you to an online player's personal spawn if they shared access with you.
 - `/spawnshare <players>` - grants the selected online players access to your personal spawn.
