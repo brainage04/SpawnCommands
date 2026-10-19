@@ -33,6 +33,11 @@ public final class SpawnCommandsClientGameTest implements FabricClientGameTest {
 
 				runCommand(context, "spawn");
 				context.waitTicks(20);
+				server.runOnServer(minecraftServer -> {
+					ServerPlayer player = minecraftServer.getPlayerList().getPlayers().getFirst();
+					BlockPos expected = minecraftServer.overworld().getLevelData().getRespawnData().pos();
+					if (!player.blockPosition().equals(expected)) throw new AssertionError("/spawn did not reach the world spawn.");
+				});
 				ClientGameTestRecorder.showStep(
 						context,
 						"spawncommands.world",
@@ -43,6 +48,12 @@ public final class SpawnCommandsClientGameTest implements FabricClientGameTest {
 
 				runCommand(context, "myspawn");
 				context.waitTicks(20);
+				server.runOnServer(minecraftServer -> {
+					ServerPlayer player = minecraftServer.getPlayerList().getPlayers().getFirst();
+					if (!player.blockPosition().equals(player.getRespawnConfig().respawnData().pos())) {
+						throw new AssertionError("/myspawn did not reach the personal spawn.");
+					}
+				});
 				ClientGameTestRecorder.showStep(
 						context,
 						"spawncommands.personal",
@@ -51,18 +62,27 @@ public final class SpawnCommandsClientGameTest implements FabricClientGameTest {
 				);
 				context.waitTicks(50);
 
-				runCommand(context, "spawnshare @s");
+				server.runOnServer(minecraftServer -> {
+					ServerPlayer player = minecraftServer.getPlayerList().getPlayers().getFirst();
+					player.teleportTo(player.getX() + 10.0D, player.getY(), player.getZ());
+				});
+				runCommand(context, "spawnof @s");
 				context.waitTicks(20);
+				server.runOnServer(minecraftServer -> {
+					ServerPlayer player = minecraftServer.getPlayerList().getPlayers().getFirst();
+					if (!player.blockPosition().equals(player.getRespawnConfig().respawnData().pos())) {
+						throw new AssertionError("/spawnof @s must allow access to your own spawn.");
+					}
+				});
 				ClientGameTestRecorder.showStep(
 						context,
 						"spawncommands.sharing",
-						"Owner-scoped spawn sharing",
-						"/spawnshare grants explicit per-owner access used by /spawnof"
+						"Your own spawn",
+						"/spawnof @s lets you visit your own spawn without sharing it"
 				);
 				context.waitTicks(50);
 			} finally {
 				context.runOnClient(client -> client.setScreenAndShow(null));
-				;
 			} });
 	}
 

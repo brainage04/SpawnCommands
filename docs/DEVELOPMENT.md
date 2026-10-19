@@ -25,14 +25,22 @@ Frozen pruning rubric:
 
 Baseline classification:
 
-| Test | Class | Reason |
-| --- | --- | --- |
-| Unit `registersEveryPublicCommand` | Redundant, removed | `allSpawnCommandsAreRegistered` checks the same four roots after real loader startup on both loaders. |
-| Unit `keepsSpawnSharesOwnerScopedAndRevocable` | Keep | Idempotent grants, revocation and owner isolation exercise the real access store. |
-| Server `allSpawnCommandsAreRegistered` | Keep | Checks registration by each loader's actual command lifecycle. |
-| Server `worldAndPersonalSpawnsTeleportToTheirConfiguredPositions` | Keep | World destination and repeated exact forced personal destination. |
-| Server `bedSpawnsResolveToTheVanillaStandUpPosition` | Keep | Real bed safety resolution differs from a forced spawn. |
-| Server `spawnSharingIsPerOwnerAndEnablesGuestTeleport` | Keep | Shared destination belongs to the owner, not the guest. |
-| Client `runTest` | Keep | Checks server commands reach the connected client's command tree. Recording steps alone are not assertions. |
+- Unit `registersEveryPublicCommand`: redundant, removed. `allSpawnCommandsAreRegistered` checks the same four roots after real loader startup on both loaders.
+- Unit `keepsSpawnSharesOwnerScopedAndRevocable`: keep. Idempotent grants, revocation and owner isolation exercise the real access store.
+- Server `allSpawnCommandsAreRegistered`: keep. Checks registration by each loader's actual command lifecycle.
+- Server `worldAndPersonalSpawnsTeleportToTheirConfiguredPositions`: keep. World destination and repeated exact forced personal destination.
+- Server `bedSpawnsResolveToTheVanillaStandUpPosition`: keep. Real bed safety resolution differs from a forced spawn.
+- Server `spawnSharingIsPerOwnerAndEnablesGuestTeleport`: keep. Shared destination belongs to the owner, not the guest.
+- Client `runTest`: keep. Checks server commands reach the connected client's command tree. Recording steps alone are not assertions.
 
 No tautological tests were removed.
+
+## Coverage added
+
+- Unit tests round-trip the production saved-data codec and check owner isolation, persisted revocation and dirty-state tracking.
+- Shared server GameTests execute every public command, deny access before sharing and after revocation, reject console use, and preserve forced-spawn rotation.
+- Shared server GameTests reject absent, removed and obstructed personal spawns without moving the player.
+- A shared server GameTest visits a Nether respawn anchor, checks that its charge is unchanged, and rejects it after its charge is removed. Changed Nether blocks are restored in `finally`.
+- The connected-client scenario now asserts command destinations rather than relying on recording captions. Its former self-sharing caption was misleading: self-access does not grant a share.
+
+Remaining boundaries: the codec is tested, but a full server restart and on-disk reload is not simulated. Missing custom dimensions and teleport cancellation by another mod are not covered. There are no mod gamerules, configuration screens, renderers or background workers to test.

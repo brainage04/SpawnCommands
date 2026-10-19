@@ -1,5 +1,6 @@
 package io.github.brainage04.spawncommands.gametest;
 
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import io.github.brainage04.spawncommands.SpawnAccessData;
 import io.github.brainage04.spawncommands.SpawnTeleportService;
 import java.util.List;
@@ -11,10 +12,14 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.RespawnAnchorBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.phys.Vec3;
+import java.util.HashMap;
+import java.util.Map;
 
 /// GameTest bodies shared by the Fabric and NeoForge GameTest registrations.
 public final class SpawnCommandsGameTests {
@@ -104,6 +109,120 @@ public final class SpawnCommandsGameTests {
 		Vec3 expected = new Vec3(ownerSpawn.getX() + 0.5D, ownerSpawn.getY() + 0.1D, ownerSpawn.getZ() + 0.5D);
 		withRespawnRadius(helper, () -> assertAlwaysLandsOn(helper, guest, owner, expected, "/spawnof"));
 		helper.succeed();
+	}
+
+	public static void missingPersonalSpawnsFailWithoutMovingThePlayer(GameTestHelper helper) {
+		ServerPlayer player = helper.makeMockServerPlayerInLevel();
+		Vec3 before = player.position();
+		helper.assertTrue(SpawnTeleportService.teleportToPersonalSpawn(player, player) == 0,
+				"A player without a personal spawn must not be teleported");
+		helper.assertTrue(player.position().equals(before), "A missing spawn must not move the player");
+
+		BlockPos missingBed = helper.absolutePos(new BlockPos(2, 2, 2));
+		player.setRespawnPosition(new ServerPlayer.RespawnConfig(
+				LevelData.RespawnData.of(helper.getLevel().dimension(), missingBed, 0.0F, 0.0F), false), false);
+		helper.assertTrue(SpawnTeleportService.teleportToPersonalSpawn(player, player) == 0,
+				"A removed bed must not fall back to the world spawn");
+		helper.assertTrue(player.position().equals(before), "An invalid bed must not move the player");
+
+		for (int x = 1; x <= 3; x++) {
+			for (int y = 1; y <= 4; y++) {
+				for (int z = 0; z <= 3; z++) {
+					helper.setBlock(new BlockPos(x, y, z), Blocks.STONE);
+				}
+			}
+		}
+		helper.setBlock(new BlockPos(2, 2, 1), Blocks.BED.red().defaultBlockState()
+				.setValue(BedBlock.FACING, Direction.SOUTH).setValue(BedBlock.PART, BedPart.FOOT));
+		helper.setBlock(new BlockPos(2, 2, 2), Blocks.BED.red().defaultBlockState()
+				.setValue(BedBlock.FACING, Direction.SOUTH).setValue(BedBlock.PART, BedPart.HEAD));
+		helper.assertTrue(SpawnTeleportService.teleportToPersonalSpawn(player, player) == 0,
+				"An obstructed bed must not fall back to the world spawn");
+		helper.assertTrue(player.position().equals(before), "An obstructed bed must not move the player");
+		helper.succeed();
+	}
+
+	public static void sharedSpawnCommandsEnforceGrantAndRevoke(GameTestHelper helper) {
+		ServerPlayer owner = helper.makeMockServerPlayerInLevel();
+		ServerPlayer guest = helper.makeMockServerPlayerInLevel();
+		var server = helper.getLevel().getServer();
+		var online = server.getPlayerList().getPlayersByUUID();
+		online.put(owner.getUUID(), owner);
+		online.put(guest.getUUID(), guest);
+		SpawnAccessData access = SpawnAccessData.get(server);
+		BlockPos destination = helper.absolutePos(new BlockPos(3, 2, 3));
+		owner.setRespawnPosition(new ServerPlayer.RespawnConfig(
+				LevelData.RespawnData.of(helper.getLevel().dimension(), destination, 75.0F, 12.0F), true), false);
+		String target = owner.getUUID().toString();
+		String guests = guest.getUUID().toString();
+		try {
+			Vec3 initial = guest.position();
+			helper.assertTrue(execute(guest, "spawnof " + target) == 0, "Unshared /spawnof must fail");
+			helper.assertTrue(guest.position().equals(initial), "Denied access must not move the guest");
+			helper.assertTrue(execute(owner, "spawnshare " + guests) == 1, "/spawnshare must grant access");
+			helper.assertTrue(execute(owner, "spawnshare " + guests) == 0, "Repeated grants must not add access twice");
+			helper.assertTrue(execute(guest, "spawnof " + target) == 1, "Shared /spawnof must succeed");
+			helper.assertTrue(guest.blockPosition().equals(destination), "The guest must land at the owner's spawn");
+			helper.assertTrue(guest.getYRot() == 75.0F && guest.getXRot() == 12.0F, "Spawn rotation must be preserved");
+			helper.assertTrue(execute(owner, "spawnshare revoke " + guests) == 1, "Revocation must remove access");
+			Vec3 afterTeleport = guest.position();
+			helper.assertTrue(execute(guest, "spawnof " + target) == 0, "Revoked /spawnof must fail");
+			helper.assertTrue(guest.position().equals(afterTeleport), "Revoked access must not move the guest");
+			helper.assertTrue(execute(owner, "myspawn") == 1, "/myspawn must execute for a player");
+			helper.assertTrue(execute(guest, "spawn") == 1, "/spawn must execute for a player");
+			try {
+				server.getCommands().getDispatcher().execute("myspawn", server.createCommandSourceStack());
+				throw new AssertionError("Console /myspawn must reject a non-player source");
+			} catch (CommandSyntaxException expected) {
+				// A player-only command must fail at the command source boundary.
+			}
+		} finally {
+			access.revoke(owner.getUUID(), List.of(guest.getUUID()));
+			online.remove(owner.getUUID(), owner);
+			online.remove(guest.getUUID(), guest);
+		}
+		helper.succeed();
+	}
+
+	public static void anchorSpawnsCrossDimensionsWithoutUsingACharge(GameTestHelper helper) {
+		ServerPlayer owner = helper.makeMockServerPlayerInLevel();
+		ServerPlayer guest = helper.makeMockServerPlayerInLevel();
+		var nether = helper.getLevel().getServer().getLevel(net.minecraft.world.level.Level.NETHER);
+		helper.assertTrue(nether != null, "The Nether must be available");
+		BlockPos origin = helper.absolutePos(new BlockPos(2, 2, 2));
+		BlockPos anchor = new BlockPos(origin.getX(), 80, origin.getZ());
+		Map<BlockPos, BlockState> previous = new HashMap<>();
+		for (BlockPos pos : BlockPos.betweenClosed(anchor.offset(-2, -1, -2), anchor.offset(2, 2, 2))) {
+			BlockPos saved = pos.immutable();
+			previous.put(saved, nether.getBlockState(saved));
+		}
+		try {
+			previous.keySet().forEach(pos -> nether.setBlockAndUpdate(pos,
+					pos.getY() == anchor.getY() - 1 ? Blocks.STONE.defaultBlockState() : Blocks.AIR.defaultBlockState()));
+			nether.setBlockAndUpdate(anchor, Blocks.RESPAWN_ANCHOR.defaultBlockState().setValue(RespawnAnchorBlock.CHARGE, 3));
+			owner.setRespawnPosition(new ServerPlayer.RespawnConfig(
+					LevelData.RespawnData.of(nether.dimension(), anchor, 35.0F, 0.0F), false), false);
+			Vec3 expected = RespawnAnchorBlock.findStandUpPosition(EntityTypes.PLAYER, nether, anchor)
+					.orElseThrow(() -> new AssertionError("The anchor must have a safe stand-up position"));
+			helper.assertTrue(SpawnTeleportService.teleportToPersonalSpawn(guest, owner) == 1, "Shared anchor teleport must succeed");
+			helper.assertTrue(guest.level() == nether && guest.position().equals(expected), "The guest must reach the Nether anchor");
+			helper.assertTrue(nether.getBlockState(anchor).getValue(RespawnAnchorBlock.CHARGE) == 3, "Teleport must not consume an anchor charge");
+			nether.setBlockAndUpdate(anchor, Blocks.RESPAWN_ANCHOR.defaultBlockState());
+			Vec3 beforeFailure = guest.position();
+			helper.assertTrue(SpawnTeleportService.teleportToPersonalSpawn(guest, owner) == 0, "An uncharged anchor must fail");
+			helper.assertTrue(guest.position().equals(beforeFailure), "An uncharged anchor must not move the guest");
+		} finally {
+			previous.forEach(nether::setBlockAndUpdate);
+		}
+		helper.succeed();
+	}
+
+	private static int execute(ServerPlayer player, String command) {
+		try {
+			return player.level().getServer().getCommands().getDispatcher().execute(command, player.createCommandSourceStack());
+		} catch (CommandSyntaxException exception) {
+			throw new AssertionError("Could not execute /" + command, exception);
+		}
 	}
 
 	@SuppressWarnings("removal")

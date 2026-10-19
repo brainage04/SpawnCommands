@@ -18,6 +18,9 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
 		register(event, "world_and_personal_spawns_teleport_to_their_configured_positions", SpawnCommandsGameTests::worldAndPersonalSpawnsTeleportToTheirConfiguredPositions);
 		register(event, "bed_spawns_resolve_to_the_vanilla_stand_up_position", SpawnCommandsGameTests::bedSpawnsResolveToTheVanillaStandUpPosition);
 		register(event, "spawn_sharing_is_per_owner_and_enables_guest_teleport", SpawnCommandsGameTests::spawnSharingIsPerOwnerAndEnablesGuestTeleport);
+		register(event, "missing_personal_spawns_fail_without_moving_the_player", SpawnCommandsGameTests::missingPersonalSpawnsFailWithoutMovingThePlayer);
+		register(event, "shared_spawn_commands_enforce_grant_and_revoke", SpawnCommandsGameTests::sharedSpawnCommandsEnforceGrantAndRevoke);
+		register(event, "anchor_spawns_cross_dimensions_without_using_a_charge", SpawnCommandsGameTests::anchorSpawnsCrossDimensionsWithoutUsingACharge);
 	}
 
 	private static void register(

@@ -24,4 +24,19 @@ public final class SpawnCommandsGameTest {
 	public void spawnSharingIsPerOwnerAndEnablesGuestTeleport(GameTestHelper helper) {
 		SpawnCommandsGameTests.spawnSharingIsPerOwnerAndEnablesGuestTeleport(helper);
 	}
+
+	@GameTest
+	public void missingPersonalSpawnsFailWithoutMovingThePlayer(GameTestHelper helper) {
+		SpawnCommandsGameTests.missingPersonalSpawnsFailWithoutMovingThePlayer(helper);
+	}
+
+	@GameTest
+	public void sharedSpawnCommandsEnforceGrantAndRevoke(GameTestHelper helper) {
+		SpawnCommandsGameTests.sharedSpawnCommandsEnforceGrantAndRevoke(helper);
+	}
+
+	@GameTest
+	public void anchorSpawnsCrossDimensionsWithoutUsingACharge(GameTestHelper helper) {
+		SpawnCommandsGameTests.anchorSpawnsCrossDimensionsWithoutUsingACharge(helper);
+	}
 }
