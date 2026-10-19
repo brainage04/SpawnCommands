@@ -21,6 +21,7 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
 		register(event, "missing_personal_spawns_fail_without_moving_the_player", SpawnCommandsGameTests::missingPersonalSpawnsFailWithoutMovingThePlayer);
 		register(event, "shared_spawn_commands_enforce_grant_and_revoke", SpawnCommandsGameTests::sharedSpawnCommandsEnforceGrantAndRevoke);
 		register(event, "anchor_spawns_cross_dimensions_without_using_a_charge", SpawnCommandsGameTests::anchorSpawnsCrossDimensionsWithoutUsingACharge);
+		register(event, "world_spawn_uses_its_configured_dimension_and_rotation", SpawnCommandsGameTests::worldSpawnUsesItsConfiguredDimensionAndRotation);
 	}
 
 	private static void register(

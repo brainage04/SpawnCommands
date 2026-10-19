@@ -111,6 +111,27 @@ public final class SpawnCommandsGameTests {
 		helper.succeed();
 	}
 
+	public static void worldSpawnUsesItsConfiguredDimensionAndRotation(GameTestHelper helper) {
+		ServerPlayer player = helper.makeMockServerPlayerInLevel();
+		var server = helper.getLevel().getServer();
+		var overworld = server.overworld();
+		var nether = server.getLevel(net.minecraft.world.level.Level.NETHER);
+		helper.assertTrue(nether != null, "The Nether must be available");
+		LevelData.RespawnData previous = overworld.getLevelData().getRespawnData();
+		BlockPos origin = helper.absolutePos(new BlockPos(2, 2, 2));
+		BlockPos destination = new BlockPos(origin.getX(), 80, origin.getZ());
+		try {
+			nether.setRespawnData(LevelData.RespawnData.of(nether.dimension(), destination, 123.0F, 14.0F));
+			helper.assertTrue(execute(player, "spawn") == 1, "/spawn must reach a world spawn outside the Overworld");
+			helper.assertTrue(player.level() == nether, "/spawn must use the configured dimension");
+			helper.assertTrue(player.position().equals(Vec3.atBottomCenterOf(destination)), "/spawn must use the configured position");
+			helper.assertTrue(player.getYRot() == 123.0F && player.getXRot() == 14.0F, "/spawn must preserve configured rotation");
+		} finally {
+			overworld.setRespawnData(previous);
+		}
+		helper.succeed();
+	}
+
 	public static void missingPersonalSpawnsFailWithoutMovingThePlayer(GameTestHelper helper) {
 		ServerPlayer player = helper.makeMockServerPlayerInLevel();
 		Vec3 before = player.position();

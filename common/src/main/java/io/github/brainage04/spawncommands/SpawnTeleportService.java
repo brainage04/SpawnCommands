@@ -17,8 +17,12 @@ public final class SpawnTeleportService {
 
 	public static int teleportToWorldSpawn(ServerPlayer player) {
 		MinecraftServer server = player.level().getServer();
-		ServerLevel level = server.overworld();
-		LevelData.RespawnData spawn = level.getLevelData().getRespawnData();
+		LevelData.RespawnData spawn = server.overworld().getLevelData().getRespawnData();
+		ServerLevel level = server.getLevel(spawn.dimension());
+		if (level == null) {
+			player.sendSystemMessage(Component.literal("The world spawn dimension is unavailable."));
+			return 0;
+		}
 		return teleport(player, level, Vec3.atBottomCenterOf(spawn.pos()), spawn.yaw(), spawn.pitch(), "world spawn");
 	}
 

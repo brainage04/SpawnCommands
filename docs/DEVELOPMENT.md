@@ -44,3 +44,11 @@ No tautological tests were removed.
 - The connected-client scenario now asserts command destinations rather than relying on recording captions. Its former self-sharing caption was misleading: self-access does not grant a share.
 
 Remaining boundaries: the codec is tested, but a full server restart and on-disk reload is not simulated. Missing custom dimensions and teleport cancellation by another mod are not covered. There are no mod gamerules, configuration screens, renderers or background workers to test.
+
+## Code review
+
+`/spawn` previously read the configured position and rotation but always teleported into the Overworld. Minecraft 26.2 world-spawn data also records a dimension, and vanilla `/setworldspawn` writes the command's dimension. The service now resolves that dimension. A shared regression test changes the world spawn to the Nether, checks dimension, position and rotation, then restores the original world-spawn data.
+
+Both loader entrypoints register the same common commands. Saved access data belongs to the server's Overworld storage rather than static process state. Command and saved-data mutations run on the server thread; there are no mod-owned threads, listeners needing shutdown, file handles or other resources.
+
+Command feedback is English literal text, not untranslated keys. Localising it and replacing `player(s)` are presentation choices left unchanged.

@@ -39,4 +39,9 @@ public final class SpawnCommandsGameTest {
 	public void anchorSpawnsCrossDimensionsWithoutUsingACharge(GameTestHelper helper) {
 		SpawnCommandsGameTests.anchorSpawnsCrossDimensionsWithoutUsingACharge(helper);
 	}
+
+	@GameTest
+	public void worldSpawnUsesItsConfiguredDimensionAndRotation(GameTestHelper helper) {
+		SpawnCommandsGameTests.worldSpawnUsesItsConfiguredDimensionAndRotation(helper);
+	}
 }
