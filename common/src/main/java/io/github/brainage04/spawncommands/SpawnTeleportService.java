@@ -10,7 +10,6 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.Set;
 
-/** Resolves and teleports players to world or personal respawn locations. */
 public final class SpawnTeleportService {
 	private SpawnTeleportService() {
 	}

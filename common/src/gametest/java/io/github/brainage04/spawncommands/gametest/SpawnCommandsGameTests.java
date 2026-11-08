@@ -22,7 +22,6 @@ import net.minecraft.world.phys.Vec3;
 import java.util.HashMap;
 import java.util.Map;
 
-/// GameTest bodies shared by the Fabric and NeoForge GameTest registrations.
 public final class SpawnCommandsGameTests {
 	/// Large enough that vanilla's world-spawn spread would move the destination on almost every teleport.
 	private static final int RESPAWN_RADIUS = 10;
@@ -48,7 +47,6 @@ public final class SpawnCommandsGameTests {
 		helper.assertTrue(SpawnTeleportService.teleportToWorldSpawn(player) == 1, "/spawn must teleport successfully");
 		helper.assertTrue(player.blockPosition().equals(worldSpawn.pos()), "/spawn must use the configured world spawn position");
 
-		// A forced (/spawnpoint) spawn respawns exactly on the configured block, like vanilla respawning.
 		BlockPos personalSpawn = helper.absolutePos(new BlockPos(2, 2, 2));
 		player.setRespawnPosition(new ServerPlayer.RespawnConfig(
 				LevelData.RespawnData.of(level.dimension(), personalSpawn, 45.0F, 0.0F),
@@ -59,7 +57,6 @@ public final class SpawnCommandsGameTests {
 		helper.succeed();
 	}
 
-	/// A bed spawn resolves to the bed's vanilla stand-up position, not a random point within the respawn radius.
 	public static void bedSpawnsResolveToTheVanillaStandUpPosition(GameTestHelper helper) {
 		ServerPlayer player = helper.makeMockServerPlayerInLevel();
 		var level = helper.getLevel();
@@ -199,7 +196,6 @@ public final class SpawnCommandsGameTests {
 				server.getCommands().getDispatcher().execute("myspawn", server.createCommandSourceStack());
 				throw new AssertionError("Console /myspawn must reject a non-player source");
 			} catch (CommandSyntaxException expected) {
-				// A player-only command must fail at the command source boundary.
 			}
 		} finally {
 			access.revoke(owner.getUUID(), List.of(guest.getUUID()));

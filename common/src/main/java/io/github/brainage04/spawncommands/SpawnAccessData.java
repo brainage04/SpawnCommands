@@ -15,7 +15,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/** Persistent owner-to-guest access lists for personal spawn points. */
 public final class SpawnAccessData extends SavedData {
 	private static final Codec<UUID> UUID_CODEC = Codec.STRING.xmap(UUID::fromString, UUID::toString);
 	private static final Codec<SpawnAccessData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
