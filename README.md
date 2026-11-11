@@ -1,6 +1,6 @@
 # SpawnCommands
 
-SpawnCommands adds server-side commands for world, personal, and explicitly shared spawn points on Fabric and NeoForge for Minecraft 26.2.
+SpawnCommands adds server-side commands for world, personal, and explicitly shared spawn points on Fabric and NeoForge for Minecraft 26.3.
 
 Personal spawn points continue to use vanilla beds, respawn anchors, dimensions, yaw, and pitch. The mod does not create a second spawn system. `/myspawn` and `/spawnof` land where a vanilla respawn would: the stand-up position beside a bed or respawn anchor, or exactly on a `/spawnpoint` position. The `respawn_radius` gamerule's random spread belongs to the world spawn and never moves a personal spawn. Teleporting does not use a respawn anchor charge. If the bed or anchor is gone or obstructed, the command fails instead of falling back to the world spawn.
 
@@ -11,7 +11,7 @@ Personal spawn points continue to use vanilla beds, respawn anchors, dimensions,
 
 ## Getting started
 
-- Fabric Loader 0.19.3 or newer with Fabric API, or NeoForge 26.2.0.88 or newer.
+- Fabric Loader 0.19.5 or newer with Fabric API, or NeoForge 26.3.0.99 or newer.
 - Install exactly one matching JAR on the server: the Fabric JAR with Fabric API, or the NeoForge JAR with NeoForge.
 
 ## Commands
