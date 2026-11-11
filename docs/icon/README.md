@@ -1,8 +1,8 @@
 # SpawnCommands icon
 
-## What this is
+## Overview
 
-The mod's icon: `icon.png` — 512x512 RGBA PNG, 3 807 bytes,
+The mod's icon is `icon.png`: a 512x512 RGBA PNG, 3 807 bytes,
 sha256 `808b6a3ca5f9fea93dbb4910321324edaf8077af2b88944b622e9f8bfb6e0297`.
 
 It is a real in-game screenshot of the mod's `/spawn` tab-completion: a 340x340 square crop
@@ -25,9 +25,9 @@ compositing. The mod ships 128x128 LANCZOS reductions of `icon.png` at
 | Renderer | software OpenGL (Mesa llvmpipe), `-XX:ActiveProcessorCount=8`, `LP_NUM_THREADS=8` |
 | Shader pack | **none** |
 | Resource pack | **none** |
-| World | `UI Void` — a byte-copy of the BrainageHUD capture world (flat generator, `layers=[]`, biome `minecraft:the_void`, seed `20260910`), prepared by `prepare.py` |
+| World | `UI Void`, a byte-copy of the BrainageHUD capture world (flat generator, `layers=[]`, biome `minecraft:the_void`, seed `20260910`), prepared by `prepare.py` |
 | Options | GUI scale 4, `renderClouds=false`, `maxFps=20`, `renderDistance=2` (client enforced 12), `soundCategory_master=0.01` |
-| Scene | `/gamemode creative` → `/gamemode spectator`, `/time set noon`, `/weather clear`, `/tick freeze`, `/tp @s 0.5 -60 0.5 0 -90` — camera looking straight up into the void sky |
+| Scene | `/gamemode creative` → `/gamemode spectator`, `/time set noon`, `/weather clear`, `/tick freeze`, `/tp @s 0.5 -60 0.5 0 -90`; camera looking straight up into the void sky |
 | Screenshot | chat history cleared with F3+D, then `t` and the literal text `/spawn` typed at 80 ms/key, then the game's own native F2 PNG (`capture_scene.py capture spawncommands-spawn '/spawn'`) |
 
 The client completes `/spawn` to `/spawnof` and draws the completions `spawnof` (selected,
@@ -60,7 +60,7 @@ exactly as in the source frame.
 | `manifest.json` | Round-3 delivery record for the three crops2 icons, including this one's measured panel box and crop box |
 | `frames/spawncommands-spawn-wide-full.png` | **The native 5120x2160 F2 screenshot this icon is cropped from** |
 | `native_scale.py` | **The script that writes `icon.png`** from the frame and crop box (native 85x85 recovery, 6x NEAREST, centred on 512x512) and the two shipped 128x128 copies |
-| `crop.py` | **The script that writes the three 340x340 crops** — `make_crop("spawncommands", …)` is the one that produced the capture crop, and it also enumerates every feasible 340-wide crop to prove the minimum asymmetry |
+| `crop.py` | **The script that writes the three 340x340 crops**: `make_crop("spawncommands", …)` is the one that produced the capture crop, and it also enumerates every feasible 340-wide crop to prove the minimum asymmetry |
 | `capture_scene.py` | The capture driver: scene verification, chat clearing, typing, F2, screenshot copy |
 | `prepare.py` | Builds this session's runtime from the BrainageHUD capture world (world, configs, options, argfile, launcher) |
 | `measure.py` | Ink/panel measurement of the native autocomplete band, with the per-entry glyph-line boxes |
@@ -73,7 +73,7 @@ exactly as in the source frame.
 | `launch-crops2.sh`, `client-crops2.args` | The exact launcher and Java argfile of the session |
 | `cleanup.json`, `blockers.json` | Resource teardown record, the 340-px-vs-symmetry blocker and the session's other limitations |
 
-Excluded on purpose: the game directory `runtime/` (21 MB — its F2 screenshots are duplicates
+Excluded on purpose: the game directory `runtime/` (21 MB; its F2 screenshots are duplicates
 of the two frames kept here), session logs, `__pycache__`, and the unchosen exactly-symmetric
 316x316 alternative `evidence/closest-equal-sky/spawncommands-autocomplete-316.png`.
 
@@ -116,11 +116,11 @@ session's world, which is not part of this provenance.
 
 ## Notes
 
-* **The sky margins are 36/60 px, not equal.** The requirement was a 340x340 canvas; with the
+* **The sky margins are 36 px left and 60 px right.** The requirement was a 340x340 canvas; with the
   native GUI scale 4 and the left-anchored command panel, 340x340 and perfectly equal sky
   cannot both hold. `crop.py` proves by enumeration that 24 px is the smallest achievable
   margin difference, and `blockers.json` records the arithmetic. The closest perfectly
-  symmetric integer crop would be 316x316 (36/36 px) — it was produced too, but it is *not*
+  symmetric integer crop would be 316x316 (36/36 px): it was produced too, but it is *not*
   the chosen icon and is not copied into this provenance.
 * As with the other chat icons of this session, the frame's full-width chat input bar is cut by
   the right edge of the crop; this was already true of the approved earlier reference images,
