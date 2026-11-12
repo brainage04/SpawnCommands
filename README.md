@@ -17,12 +17,12 @@ Personal spawn points continue to use vanilla beds, respawn anchors, dimensions,
 
 ## Commands
 
-- `/spawn` - teleports you to the world's configured spawn dimension, position and rotation. When the spawn block has a collision shape (farmland, a slab, a floor built over the spawn), you land on top of it. If there is no room for you there, even to crawl, the command fails and you stay where you are.
-- `/myspawn` - teleports you to your vanilla personal respawn point.
-- `/spawnof <player>` - teleports you to an online player's personal spawn if they shared access with you.
-- `/spawnshare <players>` - grants the selected online players access to your personal spawn.
-- `/spawnshare revoke <players>` - revokes that access, also from players who are offline. It suggests the players who have access.
-- `/spawncommands` or `/spawncommands help` - lists these commands.
+- `/spawn` – teleports you to the world's configured spawn dimension, position and rotation. When the spawn block has a collision shape (farmland, a slab, a floor built over the spawn), you land on top of it. If there is no room for you there, even to crawl, the command fails and you stay where you are.
+- `/myspawn` – teleports you to your vanilla personal respawn point.
+- `/spawnof <player>` – teleports you to an online player's personal spawn if they shared access with you.
+- `/spawnshare <players>` – grants the selected online players access to your personal spawn.
+- `/spawnshare revoke <players>` – revokes that access, also from players who are offline. It suggests the players who have access.
+- `/spawncommands` or `/spawncommands help` – lists these commands.
 
 Messages use BrainageLib's style: a grey `[SpawnCommands]` prefix with a green body for success and a red body for errors. SpawnCommands is listed in BrainageLib's `/servermods` help and first-join notice.
 
@@ -36,6 +36,6 @@ Vanilla clients can join without installing the mod.
 
 ## Documentation
 
-- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) - build and GameTest commands.
-- [docs/RELEASE.md](docs/RELEASE.md) - release automation.
-- [docs/MODRINTH.md](docs/MODRINTH.md) - optional Modrinth publishing.
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) – build and GameTest commands.
+- [docs/RELEASE.md](docs/RELEASE.md) – release automation.
+- [docs/MODRINTH.md](docs/MODRINTH.md) – optional Modrinth publishing.
