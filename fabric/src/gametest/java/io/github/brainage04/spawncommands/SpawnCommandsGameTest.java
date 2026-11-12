@@ -49,4 +49,9 @@ public final class SpawnCommandsGameTest {
     public void messagesUseModFeedbackAndHelpIsRegistered(GameTestHelper helper) {
         SpawnCommandsGameTests.messagesUseModFeedbackAndHelpIsRegistered(helper);
     }
+
+    @GameTest
+    public void ownersRevokeGuestsWhoAreOffline(GameTestHelper helper) {
+        SpawnCommandsGameTests.ownersRevokeGuestsWhoAreOffline(helper);
+    }
 }

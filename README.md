@@ -21,7 +21,7 @@ Personal spawn points continue to use vanilla beds, respawn anchors, dimensions,
 - `/myspawn` - teleports you to your vanilla personal respawn point.
 - `/spawnof <player>` - teleports you to an online player's personal spawn if they shared access with you.
 - `/spawnshare <players>` - grants the selected online players access to your personal spawn.
-- `/spawnshare revoke <players>` - revokes that access.
+- `/spawnshare revoke <players>` - revokes that access, also from players who are offline. It suggests the players who have access.
 - `/spawncommands` or `/spawncommands help` - lists these commands.
 
 Messages use BrainageLib's style: a grey `[SpawnCommands]` prefix with a green body for success and a red body for errors. SpawnCommands is listed in BrainageLib's `/servermods` help and first-join notice.

@@ -50,6 +50,10 @@ public final class SpawnAccessData extends SavedData {
         return owner.equals(guest) || shares.getOrDefault(owner, Set.of()).contains(guest);
     }
 
+    public List<UUID> guests(UUID owner) {
+        return List.copyOf(shares.getOrDefault(owner, Set.of()));
+    }
+
     public int grant(UUID owner, Collection<UUID> guests) {
         Set<UUID> allowed = shares.computeIfAbsent(owner, ignored -> new HashSet<>());
         int before = allowed.size();

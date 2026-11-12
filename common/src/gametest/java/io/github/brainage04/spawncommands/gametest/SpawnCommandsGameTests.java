@@ -1,6 +1,8 @@
 package io.github.brainage04.spawncommands.gametest;
 
+import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.suggestion.Suggestion;
 import io.github.brainage04.brainagelib.gametest.CapturedCommandOutput;
 import io.github.brainage04.brainagelib.gametest.GameTestPlayer;
 import io.github.brainage04.brainagelib.help.ServerModHelpRegistry;
@@ -12,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -431,6 +434,38 @@ public final class SpawnCommandsGameTests {
         helper.succeed();
     }
 
+    public static void ownersRevokeGuestsWhoAreOffline(GameTestHelper helper) {
+        GameProfile leaver = new GameProfile(UUID.randomUUID(), "SpawnLeaver");
+        try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
+            try (GameTestPlayer guest = GameTestPlayer.join(helper, leaver)) {
+                String share = "spawnshare " + guest.player().getScoreboardName();
+                helper.assertTrue(
+                        execute(owner.player(), share) == 1,
+                        "Sharing with an online player by name must work");
+            }
+            List<String> suggested = suggestions(owner.player(), "spawnshare revoke ");
+            helper.assertTrue(
+                    suggested.contains("SpawnLeaver"),
+                    "Revoke must suggest the offline guest, got " + suggested);
+            helper.assertTrue(
+                    execute(owner.player(), "spawnshare revoke SpawnLeaver") == 1,
+                    "An owner must be able to revoke a guest who is offline");
+            try (GameTestPlayer rejoined = GameTestPlayer.join(helper, leaver)) {
+                helper.assertTrue(
+                        execute(rejoined.player(), "spawnof SpawnKeeper") == 0,
+                        "A revoked guest must be denied after rejoining");
+            }
+        }
+        helper.succeed();
+    }
+
+    private static List<String> suggestions(ServerPlayer player, String input) {
+        var dispatcher = player.level().getServer().getCommands().getDispatcher();
+        var parse = dispatcher.parse(input, player.createCommandSourceStack());
+        return dispatcher.getCompletionSuggestions(parse).join().getList().stream()
+                .map(Suggestion::getText)
+                .toList();
+    }
     private static BlockState bed(BedPart part) {
         return Blocks.BED
                 .red()

@@ -49,6 +49,10 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 event,
                 "messages_use_mod_feedback_and_help_is_registered",
                 SpawnCommandsGameTests::messagesUseModFeedbackAndHelpIsRegistered);
+        register(
+                event,
+                "owners_revoke_guests_who_are_offline",
+                SpawnCommandsGameTests::ownersRevokeGuestsWhoAreOffline);
     }
 
     private static void register(
