@@ -1,12 +1,19 @@
 package io.github.brainage04.spawncommands;
 
 import java.util.Set;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.SectionPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.vehicle.DismountHelper;
 import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.level.storage.LevelData;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 public final class SpawnTeleportService {
     private SpawnTeleportService() {}
@@ -19,13 +26,48 @@ public final class SpawnTeleportService {
             SpawnCommands.FEEDBACK.error(player, "The world spawn dimension is unavailable.");
             return 0;
         }
-        return teleport(
-                player,
-                level,
-                Vec3.atBottomCenterOf(spawn.pos()),
-                spawn.yaw(),
-                spawn.pitch(),
-                "world spawn");
+        Vec3 destination = onTopOf(level, spawn.pos());
+        if (!fits(level, player, destination)) {
+            SpawnCommands.FEEDBACK.error(
+                    player, "Could not teleport to world spawn because it is obstructed.");
+            return 0;
+        }
+        return teleport(player, level, destination, spawn.yaw(), spawn.pitch(), "world spawn");
+    }
+
+    /**
+     * Where a player stands on {@code pos}: on top of its collision shape, the floor height vanilla
+     * measures before it stands a player up beside a bed or anchor
+     * (DismountHelper.findSafeDismountLocation, BlockGetter.getBlockFloorHeight), or the block's
+     * bottom when it has none. A full block lifts the player onto it, as vanilla's world-spawn
+     * search moves a buried spawn up (PlayerSpawnFinder.java:89-104).
+     */
+    private static Vec3 onTopOf(ServerLevel level, BlockPos pos) {
+        VoxelShape shape = level.getBlockState(pos).getCollisionShape(level, pos);
+        return Vec3.upFromBottomCenterOf(pos, shape.isEmpty() ? 0.0D : shape.max(Direction.Axis.Y));
+    }
+
+    /**
+     * Whether the player fits at {@code destination} in one of the poses vanilla tries when it puts
+     * a player down from a vehicle: the same block-collision and world-border test
+     * (DismountHelper.canDismountTo, Player.getDismountPoses). Liquids do not count, as in that
+     * test.
+     */
+    private static boolean fits(ServerLevel level, ServerPlayer player, Vec3 destination) {
+        // Block collisions treat a chunk that is not loaded as empty (BlockCollisions.java:86-87,
+        // Level.getChunkForCollisions), so load the chunks under the standing box first.
+        AABB standing = player.getLocalBoundsForPose(Pose.STANDING).move(destination);
+        for (int x = SectionPos.posToSectionCoord(standing.minX);
+                x <= SectionPos.posToSectionCoord(standing.maxX);
+                x++) {
+            for (int z = SectionPos.posToSectionCoord(standing.minZ);
+                    z <= SectionPos.posToSectionCoord(standing.maxZ);
+                    z++) {
+                level.getChunk(x, z);
+            }
+        }
+        return player.getDismountPoses().stream()
+                .anyMatch(pose -> DismountHelper.canDismountTo(level, destination, player, pose));
     }
 
     public static int teleportToPersonalSpawn(ServerPlayer player, ServerPlayer spawnOwner) {

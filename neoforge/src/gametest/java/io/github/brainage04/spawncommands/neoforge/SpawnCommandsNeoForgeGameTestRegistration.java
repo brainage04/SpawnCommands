@@ -51,6 +51,14 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 SpawnCommandsGameTests::messagesUseModFeedbackAndHelpIsRegistered);
         register(
                 event,
+                "world_spawn_lands_on_top_of_its_block",
+                SpawnCommandsGameTests::worldSpawnLandsOnTopOfItsBlock);
+        register(
+                event,
+                "obstructed_world_spawn_fails_without_moving_the_player",
+                SpawnCommandsGameTests::obstructedWorldSpawnFailsWithoutMovingThePlayer);
+        register(
+                event,
                 "owners_revoke_guests_who_are_offline",
                 SpawnCommandsGameTests::ownersRevokeGuestsWhoAreOffline);
     }

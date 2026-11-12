@@ -26,6 +26,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RespawnAnchorBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -57,14 +58,19 @@ public final class SpawnCommandsGameTests {
         try (GameTestPlayer mock = GameTestPlayer.mock(helper)) {
             ServerPlayer player = mock.player();
             var level = helper.getLevel();
-            LevelData.RespawnData worldSpawn = level.getLevelData().getRespawnData();
-            player.teleportTo(20.0D, worldSpawn.pos().getY(), 20.0D);
-            helper.assertTrue(
-                    SpawnTeleportService.teleportToWorldSpawn(player) == 1,
-                    "/spawn must teleport successfully");
-            helper.assertTrue(
-                    player.blockPosition().equals(worldSpawn.pos()),
-                    "/spawn must use the configured world spawn position");
+            BlockPos worldSpawn = helper.absolutePos(new BlockPos(4, 2, 4));
+            withWorldSpawn(
+                    helper,
+                    worldSpawn,
+                    () -> {
+                        player.teleportTo(20.0D, worldSpawn.getY(), 20.0D);
+                        helper.assertTrue(
+                                SpawnTeleportService.teleportToWorldSpawn(player) == 1,
+                                "/spawn must teleport successfully");
+                        helper.assertTrue(
+                                player.position().equals(Vec3.atBottomCenterOf(worldSpawn)),
+                                "/spawn must use the configured world spawn position");
+                    });
 
             BlockPos personalSpawn = helper.absolutePos(new BlockPos(2, 2, 2));
             player.setRespawnPosition(
@@ -280,7 +286,13 @@ public final class SpawnCommandsGameTests {
                         "Revoked access must not move the guest");
                 helper.assertTrue(
                         execute(owner, "myspawn") == 1, "/myspawn must execute for a player");
-                helper.assertTrue(execute(guest, "spawn") == 1, "/spawn must execute for a player");
+                withWorldSpawn(
+                        helper,
+                        helper.absolutePos(new BlockPos(1, 2, 1)),
+                        () ->
+                                helper.assertTrue(
+                                        execute(guest, "spawn") == 1,
+                                        "/spawn must execute for a player"));
                 try {
                     server.getCommands()
                             .getDispatcher()
@@ -404,7 +416,12 @@ public final class SpawnCommandsGameTests {
                     "[SpawnCommands] SpawnOwner has not shared their spawn with you.",
                     0xFF5555);
             guest.clearMessages();
-            helper.assertTrue(execute(guest.player(), "spawn") == 1, "/spawn must return 1");
+            withWorldSpawn(
+                    helper,
+                    helper.absolutePos(new BlockPos(1, 2, 1)),
+                    () ->
+                            helper.assertTrue(
+                                    execute(guest.player(), "spawn") == 1, "/spawn must return 1"));
             assertMessage(helper, guest, "[SpawnCommands] Teleported to world spawn.", 0x55FF55);
             owner.clearMessages();
             owner.command("spawncommands help");
@@ -431,6 +448,78 @@ public final class SpawnCommandsGameTests {
                                 "SpawnCommands: Adds world, personal, and shared player spawn"
                                         + " commands. /spawncommands help"),
                 "/servermods must list SpawnCommands, got " + output.text());
+        helper.succeed();
+    }
+
+    public static void worldSpawnLandsOnTopOfItsBlock(GameTestHelper helper) {
+        List<Block> blocks =
+                List.of(Blocks.FARMLAND, Blocks.DIRT_PATH, Blocks.SOUL_SAND, Blocks.STONE);
+        List<Double> heights = List.of(15.0D / 16.0D, 15.0D / 16.0D, 14.0D / 16.0D, 1.0D);
+        try (GameTestPlayer mock = GameTestPlayer.mock(helper)) {
+            ServerPlayer player = mock.player();
+            for (int i = 0; i < blocks.size(); i++) {
+                BlockPos block = new BlockPos(1 + 2 * (i % 2), 1, 1 + 2 * (i / 2));
+                helper.setBlock(block, blocks.get(i));
+                BlockPos spawn = helper.absolutePos(block);
+                Vec3 expected = Vec3.upFromBottomCenterOf(spawn, heights.get(i));
+                String landed = blocks.get(i).toString();
+                withWorldSpawn(
+                        helper,
+                        spawn,
+                        () -> {
+                            player.teleportTo(expected.x() + 20.0D, expected.y(), expected.z());
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 1, "/spawn must work on " + landed);
+                            helper.assertTrue(
+                                    player.position().equals(expected),
+                                    "/spawn must land on top of "
+                                            + landed
+                                            + ": expected "
+                                            + expected
+                                            + ", landed on "
+                                            + player.position());
+                        });
+            }
+        }
+        helper.succeed();
+    }
+
+    public static void obstructedWorldSpawnFailsWithoutMovingThePlayer(GameTestHelper helper) {
+        try (GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnBuiltOver")) {
+            ServerPlayer player = joined.player();
+            BlockPos buried = new BlockPos(2, 1, 2);
+            helper.setBlock(buried, Blocks.STONE);
+            helper.setBlock(buried.above(), Blocks.STONE);
+            joined.moveTo(helper, new BlockPos(5, 1, 5));
+            Vec3 before = player.position();
+            joined.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    helper.absolutePos(buried),
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 0,
+                                    "An obstructed world spawn must fail"));
+            helper.assertTrue(
+                    player.position().equals(before),
+                    "An obstructed world spawn must not move the player");
+            assertMessage(
+                    helper,
+                    joined,
+                    "[SpawnCommands] Could not teleport to world spawn because it is obstructed.",
+                    0xFF5555);
+
+            BlockPos gap = new BlockPos(4, 1, 2);
+            helper.setBlock(gap.above(), Blocks.STONE);
+            withWorldSpawn(
+                    helper,
+                    helper.absolutePos(gap),
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 1,
+                                    "A one-block gap must still work, since the player can crawl"
+                                            + " there"));
+        }
         helper.succeed();
     }
 
@@ -466,6 +555,19 @@ public final class SpawnCommandsGameTests {
                 .map(Suggestion::getText)
                 .toList();
     }
+
+    private static void withWorldSpawn(GameTestHelper helper, BlockPos spawn, Runnable body) {
+        var overworld = helper.getLevel().getServer().overworld();
+        LevelData.RespawnData previous = overworld.getLevelData().getRespawnData();
+        overworld.setRespawnData(
+                LevelData.RespawnData.of(helper.getLevel().dimension(), spawn, 0.0F, 0.0F));
+        try {
+            body.run();
+        } finally {
+            overworld.setRespawnData(previous);
+        }
+    }
+
     private static BlockState bed(BedPart part) {
         return Blocks.BED
                 .red()

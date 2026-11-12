@@ -51,6 +51,16 @@ public final class SpawnCommandsGameTest {
     }
 
     @GameTest
+    public void worldSpawnLandsOnTopOfItsBlock(GameTestHelper helper) {
+        SpawnCommandsGameTests.worldSpawnLandsOnTopOfItsBlock(helper);
+    }
+
+    @GameTest
+    public void obstructedWorldSpawnFailsWithoutMovingThePlayer(GameTestHelper helper) {
+        SpawnCommandsGameTests.obstructedWorldSpawnFailsWithoutMovingThePlayer(helper);
+    }
+
+    @GameTest
     public void ownersRevokeGuestsWhoAreOffline(GameTestHelper helper) {
         SpawnCommandsGameTests.ownersRevokeGuestsWhoAreOffline(helper);
     }
