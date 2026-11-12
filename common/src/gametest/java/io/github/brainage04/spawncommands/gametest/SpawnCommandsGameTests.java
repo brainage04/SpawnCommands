@@ -35,6 +35,7 @@ public final class SpawnCommandsGameTests {
     /// Large enough that vanilla's world-spawn spread would move the destination on almost every
     /// teleport.
     private static final int RESPAWN_RADIUS = 10;
+
     private static final int TELEPORTS = 5;
 
     private SpawnCommandsGameTests() {}
@@ -215,8 +216,7 @@ public final class SpawnCommandsGameTests {
                     SpawnTeleportService.teleportToPersonalSpawn(player, player) == 0,
                     "An obstructed bed must not fall back to the world spawn");
             helper.assertTrue(
-                    player.position().equals(before),
-                    "An obstructed bed must not move the player");
+                    player.position().equals(before), "An obstructed bed must not move the player");
         }
         helper.succeed();
     }
@@ -358,7 +358,8 @@ public final class SpawnCommandsGameTests {
 
     public static void messagesUseModFeedbackAndHelpIsRegistered(GameTestHelper helper) {
         try (var owner = GameTestPlayer.join(helper, "SpawnOwner").gameMode(GameType.SPECTATOR);
-                var guest = GameTestPlayer.join(helper, "SpawnGuest").gameMode(GameType.SPECTATOR)) {
+                var guest =
+                        GameTestPlayer.join(helper, "SpawnGuest").gameMode(GameType.SPECTATOR)) {
             var ownerSource = withServerPermissions(owner.player());
             String guestSelector = "@a[name=" + guest.player().getScoreboardName() + "]";
             owner.clearMessages();
@@ -378,7 +379,10 @@ public final class SpawnCommandsGameTests {
                     execute(ownerSource, "spawnshare revoke " + guestSelector) == 1,
                     "Revoking must return the number of players revoked");
             assertMessage(
-                    helper, owner, "[SpawnCommands] Revoked spawn access for 1 player(s).", 0x55FF55);
+                    helper,
+                    owner,
+                    "[SpawnCommands] Revoked spawn access for 1 player(s).",
+                    0x55FF55);
             owner.clearMessages();
             helper.assertTrue(
                     execute(owner.player(), "myspawn") == 0, "A missing spawn must return 0");
@@ -410,8 +414,7 @@ public final class SpawnCommandsGameTests {
                         .anyMatch(
                                 entry ->
                                         entry.modId().equals(SpawnCommands.MOD_ID)
-                                                && entry.helpCommand()
-                                                        .equals("/spawncommands help")
+                                                && entry.helpCommand().equals("/spawncommands help")
                                                 && entry.adminConfigCommand() == null),
                 "SpawnCommands must be registered in /servermods");
         var output = new CapturedCommandOutput();
@@ -438,7 +441,8 @@ public final class SpawnCommandsGameTests {
 
     private static CommandSourceStack withServerPermissions(ServerPlayer player) {
         return player.createCommandSourceStack()
-                .withPermission(player.level().getServer().createCommandSourceStack().permissions());
+                .withPermission(
+                        player.level().getServer().createCommandSourceStack().permissions());
     }
 
     private static int execute(ServerPlayer player, String command) {

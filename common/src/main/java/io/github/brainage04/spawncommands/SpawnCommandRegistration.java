@@ -17,20 +17,26 @@ public final class SpawnCommandRegistration {
     private SpawnCommandRegistration() {}
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        dispatcher.register(literal("spawn").executes(SpawnCommandRegistration::teleportToWorldSpawn));
-        dispatcher.register(literal("myspawn").executes(SpawnCommandRegistration::teleportToOwnSpawn));
+        dispatcher.register(
+                literal("spawn").executes(SpawnCommandRegistration::teleportToWorldSpawn));
+        dispatcher.register(
+                literal("myspawn").executes(SpawnCommandRegistration::teleportToOwnSpawn));
         dispatcher.register(
                 literal("spawnof")
                         .then(
                                 argument("player", EntityArgument.player())
-                                        .executes(SpawnCommandRegistration::teleportToSharedSpawn)));
+                                        .executes(
+                                                SpawnCommandRegistration::teleportToSharedSpawn)));
         dispatcher.register(
                 literal("spawnshare")
                         .then(
                                 literal("revoke")
                                         .then(
                                                 argument("players", EntityArgument.players())
-                                                        .executes(context -> changeAccess(context, false))))
+                                                        .executes(
+                                                                context ->
+                                                                        changeAccess(
+                                                                                context, false))))
                         .then(
                                 argument("players", EntityArgument.players())
                                         .executes(context -> changeAccess(context, true))));
@@ -45,7 +51,8 @@ public final class SpawnCommandRegistration {
 
     private static int teleportToWorldSpawn(CommandContext<CommandSourceStack> context)
             throws CommandSyntaxException {
-        return SpawnTeleportService.teleportToWorldSpawn(context.getSource().getPlayerOrException());
+        return SpawnTeleportService.teleportToWorldSpawn(
+                context.getSource().getPlayerOrException());
     }
 
     private static int teleportToOwnSpawn(CommandContext<CommandSourceStack> context)
@@ -78,7 +85,9 @@ public final class SpawnCommandRegistration {
                         ? access.grant(owner.getUUID(), playerIds)
                         : access.revoke(owner.getUUID(), playerIds);
         String message =
-                grant ? "Shared your spawn with %d player(s)." : "Revoked spawn access for %d player(s).";
+                grant
+                        ? "Shared your spawn with %d player(s)."
+                        : "Revoked spawn access for %d player(s).";
         if (changed == 0) {
             SpawnCommands.FEEDBACK.neutral(source, message, changed);
         } else {
