@@ -44,4 +44,9 @@ public final class SpawnCommandsGameTest {
     public void worldSpawnUsesItsConfiguredDimensionAndRotation(GameTestHelper helper) {
         SpawnCommandsGameTests.worldSpawnUsesItsConfiguredDimensionAndRotation(helper);
     }
+
+    @GameTest
+    public void messagesUseModFeedbackAndHelpIsRegistered(GameTestHelper helper) {
+        SpawnCommandsGameTests.messagesUseModFeedbackAndHelpIsRegistered(helper);
+    }
 }

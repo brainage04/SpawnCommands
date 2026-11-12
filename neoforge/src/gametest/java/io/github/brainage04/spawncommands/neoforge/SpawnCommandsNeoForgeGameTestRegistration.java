@@ -45,6 +45,10 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 event,
                 "world_spawn_uses_its_configured_dimension_and_rotation",
                 SpawnCommandsGameTests::worldSpawnUsesItsConfiguredDimensionAndRotation);
+        register(
+                event,
+                "messages_use_mod_feedback_and_help_is_registered",
+                SpawnCommandsGameTests::messagesUseModFeedbackAndHelpIsRegistered);
     }
 
     private static void register(

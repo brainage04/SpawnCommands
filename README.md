@@ -12,6 +12,7 @@ Personal spawn points continue to use vanilla beds, respawn anchors, dimensions,
 ## Getting started
 
 - Fabric Loader 0.19.5 or newer with Fabric API, or NeoForge 26.3.0.99 or newer.
+- BrainageLib 2.0.0 or newer for the matching loader.
 - Install exactly one matching JAR on the server: the Fabric JAR with Fabric API, or the NeoForge JAR with NeoForge.
 
 ## Commands
@@ -21,6 +22,9 @@ Personal spawn points continue to use vanilla beds, respawn anchors, dimensions,
 - `/spawnof <player>` - teleports you to an online player's personal spawn if they shared access with you.
 - `/spawnshare <players>` - grants the selected online players access to your personal spawn.
 - `/spawnshare revoke <players>` - revokes that access.
+- `/spawncommands` or `/spawncommands help` - lists these commands.
+
+Messages use BrainageLib's style: a grey `[SpawnCommands]` prefix with a green body for success and a red body for errors. SpawnCommands is listed in BrainageLib's `/servermods` help and first-join notice.
 
 ## Configuration
 

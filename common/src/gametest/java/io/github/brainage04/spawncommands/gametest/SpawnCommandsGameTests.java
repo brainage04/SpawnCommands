@@ -1,18 +1,27 @@
 package io.github.brainage04.spawncommands.gametest;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import io.github.brainage04.brainagelib.gametest.CapturedCommandOutput;
+import io.github.brainage04.brainagelib.gametest.GameTestPlayer;
+import io.github.brainage04.brainagelib.help.ServerModHelpRegistry;
 import io.github.brainage04.spawncommands.SpawnAccessData;
+import io.github.brainage04.spawncommands.SpawnCommands;
 import io.github.brainage04.spawncommands.SpawnTeleportService;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RespawnAnchorBlock;
@@ -355,6 +364,83 @@ public final class SpawnCommandsGameTests {
         helper.succeed();
     }
 
+    public static void messagesUseModFeedbackAndHelpIsRegistered(GameTestHelper helper) {
+        try (var owner = GameTestPlayer.join(helper, "SpawnOwner").gameMode(GameType.SPECTATOR);
+                var guest = GameTestPlayer.join(helper, "SpawnGuest").gameMode(GameType.SPECTATOR)) {
+            var ownerSource = withServerPermissions(owner.player());
+            String guestSelector = "@a[name=" + guest.player().getScoreboardName() + "]";
+            owner.clearMessages();
+            helper.assertTrue(
+                    execute(ownerSource, "spawnshare " + guestSelector) == 1,
+                    "Sharing must return the number of players granted");
+            assertMessage(
+                    helper, owner, "[SpawnCommands] Shared your spawn with 1 player(s).", 0x55FF55);
+            owner.clearMessages();
+            helper.assertTrue(
+                    execute(ownerSource, "spawnshare " + guestSelector) == 0,
+                    "Repeated sharing must return 0");
+            assertMessage(
+                    helper, owner, "[SpawnCommands] Shared your spawn with 0 player(s).", 0xFFFF55);
+            owner.clearMessages();
+            helper.assertTrue(
+                    execute(ownerSource, "spawnshare revoke " + guestSelector) == 1,
+                    "Revoking must return the number of players revoked");
+            assertMessage(
+                    helper, owner, "[SpawnCommands] Revoked spawn access for 1 player(s).", 0x55FF55);
+            owner.clearMessages();
+            helper.assertTrue(
+                    execute(owner.player(), "myspawn") == 0, "A missing spawn must return 0");
+            assertMessage(
+                    helper,
+                    owner,
+                    "[SpawnCommands] You do not have a personal spawn point.",
+                    0xFF5555);
+            guest.clearMessages();
+            helper.assertTrue(
+                    execute(guest.player(), "spawnof SpawnOwner") == 0,
+                    "An unshared spawn must return 0");
+            assertMessage(
+                    helper,
+                    guest,
+                    "[SpawnCommands] SpawnOwner has not shared their spawn with you.",
+                    0xFF5555);
+            guest.clearMessages();
+            helper.assertTrue(execute(guest.player(), "spawn") == 1, "/spawn must return 1");
+            assertMessage(helper, guest, "[SpawnCommands] Teleported to world spawn.", 0x55FF55);
+            owner.clearMessages();
+            owner.command("spawncommands help");
+            helper.assertTrue(
+                    owner.received("[SpawnCommands] /spawn - teleport to the world spawn"),
+                    "/spawncommands help must list the commands, got " + owner.messageTexts());
+        }
+        helper.assertTrue(
+                ServerModHelpRegistry.entries().stream()
+                        .anyMatch(
+                                entry ->
+                                        entry.modId().equals(SpawnCommands.MOD_ID)
+                                                && entry.helpCommand()
+                                                        .equals("/spawncommands help")
+                                                && entry.adminConfigCommand() == null),
+                "SpawnCommands must be registered in /servermods");
+        var output = new CapturedCommandOutput();
+        helper.getLevel()
+                .getServer()
+                .getCommands()
+                .performPrefixedCommand(output.source(helper.getLevel().getServer()), "servermods");
+        helper.assertTrue(
+                output.text()
+                        .contains(
+                                "SpawnCommands: Adds world, personal, and shared player spawn"
+                                        + " commands. /spawncommands help"),
+                "/servermods must list SpawnCommands, got " + output.text());
+        helper.succeed();
+    }
+
+    private static CommandSourceStack withServerPermissions(ServerPlayer player) {
+        return player.createCommandSourceStack()
+                .withPermission(player.level().getServer().createCommandSourceStack().permissions());
+    }
+
     private static int execute(ServerPlayer player, String command) {
         return execute(player.createCommandSourceStack(), command);
     }
@@ -365,6 +451,25 @@ public final class SpawnCommandsGameTests {
         } catch (CommandSyntaxException exception) {
             throw new AssertionError("Could not execute /" + command, exception);
         }
+    }
+
+    private static void assertMessage(
+            GameTestHelper helper, GameTestPlayer player, String text, int bodyColor) {
+        List<Component> messages = player.messages();
+        helper.assertTrue(
+                messages.size() == 1 && messages.getFirst().getString().equals(text),
+                "Expected only \"" + text + "\", got " + player.messageTexts());
+        List<Integer> colors = new ArrayList<>();
+        messages.getFirst()
+                .visit(
+                        (style, segment) -> {
+                            if (!segment.isEmpty()) colors.add(style.getColor().getValue());
+                            return Optional.empty();
+                        },
+                        Style.EMPTY);
+        helper.assertTrue(
+                colors.equals(List.of(0xAAAAAA, bodyColor)),
+                "Expected a grey prefix and a coloured body for \"" + text + "\", got " + colors);
     }
 
     @SuppressWarnings("removal")

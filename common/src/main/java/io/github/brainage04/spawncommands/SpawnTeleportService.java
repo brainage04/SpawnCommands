@@ -1,7 +1,6 @@
 package io.github.brainage04.spawncommands;
 
 import java.util.Set;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -17,8 +16,7 @@ public final class SpawnTeleportService {
         LevelData.RespawnData spawn = server.overworld().getLevelData().getRespawnData();
         ServerLevel level = server.getLevel(spawn.dimension());
         if (level == null) {
-            player.sendSystemMessage(
-                    Component.literal("The world spawn dimension is unavailable."));
+            SpawnCommands.FEEDBACK.error(player, "The world spawn dimension is unavailable.");
             return 0;
         }
         return teleport(
@@ -33,34 +31,37 @@ public final class SpawnTeleportService {
     public static int teleportToPersonalSpawn(ServerPlayer player, ServerPlayer spawnOwner) {
         ServerPlayer.RespawnConfig config = spawnOwner.getRespawnConfig();
         if (config == null) {
-            player.sendSystemMessage(
-                    Component.literal(
-                            spawnOwner == player
-                                    ? "You do not have a personal spawn point."
-                                    : spawnOwner.getScoreboardName()
-                                            + " does not have a personal spawn point."));
+            if (spawnOwner == player) {
+                SpawnCommands.FEEDBACK.error(player, "You do not have a personal spawn point.");
+            } else {
+                SpawnCommands.FEEDBACK.error(
+                        player,
+                        "%s does not have a personal spawn point.",
+                        spawnOwner.getScoreboardName());
+            }
             return 0;
         }
         if (player.level().getServer().getLevel(config.respawnData().dimension()) == null) {
-            player.sendSystemMessage(
-                    Component.literal("That personal spawn dimension is unavailable."));
+            SpawnCommands.FEEDBACK.error(player, "That personal spawn dimension is unavailable.");
             return 0;
         }
 
         // Resolve like a vanilla respawn (bed/anchor stand-up position, exact forced position)
-        // without using an
-        // anchor charge. The world-spawn spread driven by the respawn radius gamerule never applies
-        // here.
+        // without using an anchor charge. The world-spawn spread driven by the respawn radius
+        // gamerule never applies here.
         TeleportTransition respawn =
                 spawnOwner.findRespawnPositionAndUseSpawnBlock(
                         false, TeleportTransition.DO_NOTHING);
         if (respawn.missingRespawnBlock()) {
-            player.sendSystemMessage(
-                    Component.literal(
-                            spawnOwner == player
-                                    ? "Your personal spawn point is missing or obstructed."
-                                    : spawnOwner.getScoreboardName()
-                                            + "'s spawn point is missing or obstructed."));
+            if (spawnOwner == player) {
+                SpawnCommands.FEEDBACK.error(
+                        player, "Your personal spawn point is missing or obstructed.");
+            } else {
+                SpawnCommands.FEEDBACK.error(
+                        player,
+                        "%s's spawn point is missing or obstructed.",
+                        spawnOwner.getScoreboardName());
+            }
             return 0;
         }
         String label =
@@ -94,10 +95,10 @@ public final class SpawnTeleportService {
                         pitch,
                         false);
         if (!teleported) {
-            player.sendSystemMessage(Component.literal("Could not teleport to " + label + "."));
+            SpawnCommands.FEEDBACK.error(player, "Could not teleport to %s.", label);
             return 0;
         }
-        player.sendSystemMessage(Component.literal("Teleported to " + label + "."));
+        SpawnCommands.FEEDBACK.success(player, "Teleported to %s.", label);
         return 1;
     }
 }
