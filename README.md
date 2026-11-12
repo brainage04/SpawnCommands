@@ -28,7 +28,7 @@ Messages use BrainageLib's style: a grey `[SpawnCommands]` prefix with a green b
 
 ## Known limits
 
-- `/spawnshare revoke` looks a typed name up only in the server's name cache (`usercache.json`), never through Mojang. The cache holds the players the server has seen recently and saves at most 1000 of them, so a guest who has dropped out of it cannot be named until they join again. Selectors such as `@p` still match online players.
+- `/spawnshare revoke` looks a typed name up only in the server's name cache (`usercache.json`), never through Mojang. The cache holds the players the server has seen recently and saves at most 1000 of them, so a guest who has dropped out of it cannot be named until they join again. Operators can still pick online players with selectors such as `@p`.
 - When two cached guests have the same name (one was renamed and another took the name), `/spawnshare revoke` with that name revokes both.
 
 ## Configuration
