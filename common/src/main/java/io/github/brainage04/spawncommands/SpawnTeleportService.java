@@ -2,7 +2,6 @@ package io.github.brainage04.spawncommands;
 
 import java.util.Set;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -13,7 +12,6 @@ import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.phys.shapes.VoxelShape;
 
 public final class SpawnTeleportService {
     private SpawnTeleportService() {}
@@ -36,15 +34,17 @@ public final class SpawnTeleportService {
     }
 
     /**
-     * Where a player stands on {@code pos}: on top of its collision shape, the floor height vanilla
-     * measures before it stands a player up beside a bed or anchor
-     * (DismountHelper.findSafeDismountLocation, BlockGetter.getBlockFloorHeight), or the block's
-     * bottom when it has none. A full block lifts the player onto it, as vanilla's world-spawn
-     * search moves a buried spawn up (PlayerSpawnFinder.java:89-104).
+     * Where a player stands on {@code pos}: on top of the floor in that block, by vanilla's
+     * floor-height rule (BlockGetter.getBlockFloorHeight, BlockGetter.java:96-110), which vanilla
+     * also applies, with ladders and open trapdoors counted as empty, before it stands a player up
+     * beside a bed or anchor (DismountHelper.java:87). An empty block over a fence or wall puts the
+     * player on the fence top; a full block lifts the player onto it, as vanilla's world-spawn
+     * search moves a buried spawn up (PlayerSpawnFinder.java:89-104). With no floor within reach
+     * the player lands on the block's bottom.
      */
     private static Vec3 onTopOf(ServerLevel level, BlockPos pos) {
-        VoxelShape shape = level.getBlockState(pos).getCollisionShape(level, pos);
-        return Vec3.upFromBottomCenterOf(pos, shape.isEmpty() ? 0.0D : shape.max(Direction.Axis.Y));
+        double floor = level.getBlockFloorHeight(pos);
+        return Vec3.upFromBottomCenterOf(pos, Double.isInfinite(floor) ? 0.0D : floor);
     }
 
     /**

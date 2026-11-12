@@ -523,6 +523,40 @@ public final class SpawnCommandsGameTests {
         helper.succeed();
     }
 
+    public static void worldSpawnOverAFenceOrWallLandsOnItsTop(GameTestHelper helper) {
+        List<Block> blocks = List.of(Blocks.OAK_FENCE, Blocks.COBBLESTONE_WALL);
+        try (GameTestPlayer mock = GameTestPlayer.mock(helper)) {
+            ServerPlayer player = mock.player();
+            for (int i = 0; i < blocks.size(); i++) {
+                BlockPos block = new BlockPos(1 + 2 * i, 1, 1);
+                helper.setBlock(block, blocks.get(i));
+                // /setworldspawn while standing on the fence stores the block above it
+                // (SetWorldSpawnCommand.java:21).
+                BlockPos spawn = helper.absolutePos(block.above());
+                Vec3 expected = Vec3.upFromBottomCenterOf(spawn, 0.5D);
+                String landed = blocks.get(i).toString();
+                withWorldSpawn(
+                        helper,
+                        spawn,
+                        () -> {
+                            player.teleportTo(expected.x() + 20.0D, expected.y(), expected.z());
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 1,
+                                    "/spawn must work over " + landed);
+                            helper.assertTrue(
+                                    player.position().equals(expected),
+                                    "/spawn must land on top of "
+                                            + landed
+                                            + ": expected "
+                                            + expected
+                                            + ", landed on "
+                                            + player.position());
+                        });
+            }
+        }
+        helper.succeed();
+    }
+
     public static void ownersRevokeGuestsWhoAreOffline(GameTestHelper helper) {
         GameProfile leaver = new GameProfile(UUID.randomUUID(), "SpawnLeaver");
         try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {

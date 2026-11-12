@@ -64,4 +64,9 @@ public final class SpawnCommandsGameTest {
     public void ownersRevokeGuestsWhoAreOffline(GameTestHelper helper) {
         SpawnCommandsGameTests.ownersRevokeGuestsWhoAreOffline(helper);
     }
+
+    @GameTest
+    public void worldSpawnOverAFenceOrWallLandsOnItsTop(GameTestHelper helper) {
+        SpawnCommandsGameTests.worldSpawnOverAFenceOrWallLandsOnItsTop(helper);
+    }
 }

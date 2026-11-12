@@ -59,6 +59,10 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 SpawnCommandsGameTests::obstructedWorldSpawnFailsWithoutMovingThePlayer);
         register(
                 event,
+                "world_spawn_over_a_fence_or_wall_lands_on_its_top",
+                SpawnCommandsGameTests::worldSpawnOverAFenceOrWallLandsOnItsTop);
+        register(
+                event,
                 "owners_revoke_guests_who_are_offline",
                 SpawnCommandsGameTests::ownersRevokeGuestsWhoAreOffline);
     }
