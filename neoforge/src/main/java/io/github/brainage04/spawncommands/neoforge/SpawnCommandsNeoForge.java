@@ -9,9 +9,10 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
 @Mod(SpawnCommands.MOD_ID)
 public final class SpawnCommandsNeoForge {
-	public SpawnCommandsNeoForge(IEventBus modEventBus) {
-		SpawnCommands.initialize();
-		NeoForge.EVENT_BUS.addListener((RegisterCommandsEvent event) ->
-				SpawnCommandRegistration.register(event.getDispatcher()));
-	}
+    public SpawnCommandsNeoForge(IEventBus modEventBus) {
+        SpawnCommands.initialize();
+        NeoForge.EVENT_BUS.addListener(
+                (RegisterCommandsEvent event) ->
+                        SpawnCommandRegistration.register(event.getDispatcher()));
+    }
 }
