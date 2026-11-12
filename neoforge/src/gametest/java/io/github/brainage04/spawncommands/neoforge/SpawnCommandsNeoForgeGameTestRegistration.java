@@ -63,6 +63,10 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 SpawnCommandsGameTests::worldSpawnOverAFenceOrWallLandsOnItsTop);
         register(
                 event,
+                "world_spawn_in_powder_snow_is_judged_where_it_is",
+                SpawnCommandsGameTests::worldSpawnInPowderSnowIsJudgedWhereItIs);
+        register(
+                event,
                 "owners_revoke_guests_who_are_offline",
                 SpawnCommandsGameTests::ownersRevokeGuestsWhoAreOffline);
     }

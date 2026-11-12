@@ -24,6 +24,9 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Block;
@@ -553,6 +556,36 @@ public final class SpawnCommandsGameTests {
                                             + player.position());
                         });
             }
+        }
+        helper.succeed();
+    }
+
+    public static void worldSpawnInPowderSnowIsJudgedWhereItIs(GameTestHelper helper) {
+        BlockPos block = new BlockPos(2, 2, 2);
+        helper.setBlock(block.below(), Blocks.STONE);
+        helper.setBlock(block, Blocks.POWDER_SNOW);
+        BlockPos spawn = helper.absolutePos(block);
+        Vec3 expected = Vec3.atBottomCenterOf(spawn);
+        try (GameTestPlayer mock = GameTestPlayer.mock(helper)) {
+            ServerPlayer player = mock.player();
+            player.setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.LEATHER_BOOTS));
+            // From above, powder snow is solid to a player in leather boots where they stand
+            // now, but not at the spawn.
+            player.teleportTo(expected.x() + 20.0D, expected.y() + 10.0D, expected.z());
+            withWorldSpawn(
+                    helper,
+                    spawn,
+                    () -> {
+                        helper.assertTrue(
+                                execute(player, "spawn") == 1,
+                                "/spawn into powder snow must work from above it");
+                        helper.assertTrue(
+                                player.position().equals(expected),
+                                "/spawn must land in the powder snow: expected "
+                                        + expected
+                                        + ", landed on "
+                                        + player.position());
+                    });
         }
         helper.succeed();
     }

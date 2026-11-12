@@ -69,4 +69,9 @@ public final class SpawnCommandsGameTest {
     public void worldSpawnOverAFenceOrWallLandsOnItsTop(GameTestHelper helper) {
         SpawnCommandsGameTests.worldSpawnOverAFenceOrWallLandsOnItsTop(helper);
     }
+
+    @GameTest
+    public void worldSpawnInPowderSnowIsJudgedWhereItIs(GameTestHelper helper) {
+        SpawnCommandsGameTests.worldSpawnInPowderSnowIsJudgedWhereItIs(helper);
+    }
 }
