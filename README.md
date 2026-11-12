@@ -12,7 +12,7 @@ Personal spawn points continue to use vanilla beds, respawn anchors, dimensions,
 ## Getting started
 
 - Fabric Loader 0.19.5 or newer with Fabric API, or NeoForge 26.3.0.99 or newer.
-- BrainageLib 2.0.0 or newer for the matching loader.
+- BrainageLib 2.0.0 or newer, below 3.0.0, for the matching loader.
 - Install exactly one matching JAR on the server: the Fabric JAR with Fabric API, or the NeoForge JAR with NeoForge.
 
 ## Commands
