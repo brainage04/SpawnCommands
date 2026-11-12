@@ -9,19 +9,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 
 public final class SpawnAccessData extends SavedData {
-    private static final Codec<UUID> UUID_CODEC =
-            Codec.STRING.xmap(UUID::fromString, UUID::toString);
     private static final Codec<SpawnAccessData> CODEC =
             RecordCodecBuilder.create(
                     instance ->
                             instance.group(
-                                            Codec.unboundedMap(UUID_CODEC, UUID_CODEC.listOf())
+                                            Codec.unboundedMap(
+                                                            UUIDUtil.STRING_CODEC,
+                                                            UUIDUtil.STRING_CODEC.listOf())
                                                     .optionalFieldOf("shares", Map.of())
                                                     .forGetter(SpawnAccessData::snapshot))
                                     .apply(instance, SpawnAccessData::new));

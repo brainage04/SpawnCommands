@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
 import java.util.List;
 import java.util.UUID;
@@ -77,5 +78,25 @@ class SpawnCommandsTest {
         assertEquals(0, data.revoke(owner, List.of(guest)));
         assertFalse(data.isDirty());
         assertTrue(data.allows(owner, owner));
+    }
+
+    @Test
+    void aMalformedUuidDropsOnlyItsOwnEntry() {
+        String owner = "00000000-0000-0000-0000-000000000001";
+        String guest = "00000000-0000-0000-0000-000000000002";
+        var json =
+                JsonParser.parseString(
+                        "{\"shares\": {\""
+                                + owner
+                                + "\": [\""
+                                + guest
+                                + "\", \"not-a-uuid\"], \"not-a-uuid\": [\""
+                                + guest
+                                + "\"]}}");
+        var result = SpawnAccessData.TYPE.codec().parse(JsonOps.INSTANCE, json);
+        assertTrue(result.error().isPresent());
+        // The server loads the partial result (SavedDataStorage.java:93-95).
+        SpawnAccessData data = result.resultOrPartial(error -> {}).orElseThrow();
+        assertTrue(data.allows(UUID.fromString(owner), UUID.fromString(guest)));
     }
 }
