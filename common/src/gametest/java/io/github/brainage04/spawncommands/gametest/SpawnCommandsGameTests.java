@@ -615,6 +615,70 @@ public final class SpawnCommandsGameTests {
         helper.succeed();
     }
 
+    public static void worldSpawnInAnUnloadedChunkTeleportsLikeVanilla(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        try (GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnFaraway");
+                GameTestPlayer vanilla = GameTestPlayer.join(helper, "SpawnVanilla")) {
+            ServerPlayer player = joined.player();
+            joined.moveTo(helper, new BlockPos(5, 1, 5));
+            BlockPos far = helper.absolutePos(new BlockPos(5, 1, 5)).offset(100_000, 0, 0);
+            int farChunkX = SectionPos.blockToSectionCoord(far.getX());
+            int farChunkZ = SectionPos.blockToSectionCoord(far.getZ());
+            helper.assertTrue(
+                    !level.hasChunk(farChunkX, farChunkZ),
+                    "The spawn's chunk must not be loaded before /spawn");
+            Vec3 expected = Vec3.atBottomCenterOf(far);
+            withWorldSpawn(
+                    helper,
+                    far,
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 1,
+                                    "A world spawn in a chunk nobody loaded must teleport, as"
+                                            + " vanilla /tp does"));
+            helper.assertTrue(
+                    player.position().equals(expected),
+                    "The player must arrive at the world spawn: expected "
+                            + expected
+                            + ", landed on "
+                            + player.position());
+            helper.assertTrue(
+                    !level.hasChunk(farChunkX, farChunkZ),
+                    "The command must not load the spawn chunk itself, as /tp does not: the"
+                            + " player's own chunk ticket loads it");
+
+            ServerPlayer moved = vanilla.player();
+            vanilla.moveTo(helper, new BlockPos(3, 1, 3));
+            BlockPos other = helper.absolutePos(new BlockPos(3, 1, 3)).offset(100_000, 0, 20_000);
+            int otherChunkX = SectionPos.blockToSectionCoord(other.getX());
+            int otherChunkZ = SectionPos.blockToSectionCoord(other.getZ());
+            helper.assertTrue(
+                    !level.hasChunk(otherChunkX, otherChunkZ),
+                    "The /tp destination's chunk must not be loaded before /tp");
+            Vec3 teleported = Vec3.atBottomCenterOf(other);
+            execute(
+                    withServerPermissions(moved),
+                    "tp "
+                            + moved.getScoreboardName()
+                            + " "
+                            + teleported.x()
+                            + " "
+                            + teleported.y()
+                            + " "
+                            + teleported.z());
+            helper.assertTrue(
+                    moved.position().equals(teleported),
+                    "Vanilla /tp must move the player to the unloaded chunk: expected "
+                            + teleported
+                            + ", landed on "
+                            + moved.position());
+            helper.assertTrue(
+                    !level.hasChunk(otherChunkX, otherChunkZ),
+                    "Vanilla /tp must not load the destination chunk either");
+        }
+        helper.succeed();
+    }
+
     private static List<String> suggestions(ServerPlayer player, String input) {
         var dispatcher = player.level().getServer().getCommands().getDispatcher();
         var parse = dispatcher.parse(input, player.createCommandSourceStack());

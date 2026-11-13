@@ -74,4 +74,9 @@ public final class SpawnCommandsGameTest {
     public void worldSpawnInPowderSnowIsJudgedWhereItIs(GameTestHelper helper) {
         SpawnCommandsGameTests.worldSpawnInPowderSnowIsJudgedWhereItIs(helper);
     }
+
+    @GameTest
+    public void worldSpawnInAnUnloadedChunkTeleportsLikeVanilla(GameTestHelper helper) {
+        SpawnCommandsGameTests.worldSpawnInAnUnloadedChunkTeleportsLikeVanilla(helper);
+    }
 }
