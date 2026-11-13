@@ -178,8 +178,8 @@ public final class SpawnTeleportService {
     /**
      * Why the destination cannot be used: it is in lava, or it is over the void. Vanilla's own
      * answer for a safe teleport destination is SpreadPlayersCommand.Pos.isSafe
-     * (SpreadPlayersCommand.java:364-368): the first block from the destination down to the
-     * level's minimum build height must exist, found by the scan in getSpawnY
+     * (SpreadPlayersCommand.java:364-368): the first block from the destination down to the level's
+     * minimum build height must exist, found by the scan in getSpawnY
      * (SpreadPlayersCommand.java:344-362), and must not be a liquid. Running out of blocks before
      * the minimum build height is the void. Lava is the liquid that kills, the one vanilla's lava
      * damage names (FluidTags.LAVA, Entity.java:1772-1774); water is survivable, so a spawn in it

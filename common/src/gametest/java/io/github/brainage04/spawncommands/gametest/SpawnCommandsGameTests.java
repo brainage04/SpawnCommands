@@ -617,8 +617,7 @@ public final class SpawnCommandsGameTests {
         helper.succeed();
     }
 
-    public static void spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer(
-            GameTestHelper helper) {
+    public static void spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         try (GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnDangerous")) {
             ServerPlayer player = joined.player();
@@ -656,8 +655,7 @@ public final class SpawnCommandsGameTests {
             // (SetSpawnCommand.java:21, ServerPlayer.java:1121-1130).
             player.setRespawnPosition(
                     new ServerPlayer.RespawnConfig(
-                            LevelData.RespawnData.of(
-                                    level.dimension(), overVoid, 0.0F, 0.0F),
+                            LevelData.RespawnData.of(level.dimension(), overVoid, 0.0F, 0.0F),
                             true),
                     false);
             joined.clearMessages();
