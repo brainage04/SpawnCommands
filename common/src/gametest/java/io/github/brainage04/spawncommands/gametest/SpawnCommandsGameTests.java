@@ -301,13 +301,22 @@ public final class SpawnCommandsGameTests {
                                 helper.assertTrue(
                                         execute(guest, "spawn") == 1,
                                         "/spawn must execute for a player"));
-                try {
-                    server.getCommands()
-                            .getDispatcher()
-                            .execute("myspawn", server.createCommandSourceStack());
-                    throw new AssertionError("Console /myspawn must reject a non-player source");
-                } catch (CommandSyntaxException expected) {
-                }
+                var consoleOutput = new CapturedCommandOutput();
+                helper.assertTrue(
+                        server.getCommands()
+                                        .performPrefixedCommand(
+                                                consoleOutput.source(server), "myspawn")
+                                == 0,
+                        "Console /myspawn must be refused");
+                helper.assertTrue(
+                        consoleOutput
+                                .text()
+                                .equals(
+                                        "[SpawnCommands] This command can only be used by"
+                                                + " players!"),
+                        "Console /myspawn must get BrainageLib's shared players-only message, got"
+                                + " "
+                                + consoleOutput.text());
             } finally {
                 access.revoke(owner.getUUID(), List.of(guest.getUUID()));
                 owner.removeTag(ownerTag);
