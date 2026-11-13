@@ -75,12 +75,15 @@ public final class SpawnCommandsGameTest {
         SpawnCommandsGameTests.worldSpawnInPowderSnowIsJudgedWhereItIs(helper);
     }
 
-    @GameTest(maxTicks = 2000)
+    // The GameTest server ticks as fast as it can, 625 ticks a second on GitHub's runners and about
+    // 20 on a busy development machine (measured 14 Nov 2026), so the tick budget has to be large
+    // enough for the chunk load on the faster of the two: 20000 ticks are about half a minute there.
+    @GameTest(maxTicks = 20000)
     public void worldSpawnInAnUnloadedChunkTeleportsAfterLoadingIt(GameTestHelper helper) {
         SpawnCommandsGameTests.worldSpawnInAnUnloadedChunkTeleportsAfterLoadingIt(helper);
     }
 
-    @GameTest(maxTicks = 2000)
+    @GameTest(maxTicks = 20000)
     public void aWorldSpawnInsideTheGroundOfAnUnloadedChunkStillFails(GameTestHelper helper) {
         SpawnCommandsGameTests.aWorldSpawnInsideTheGroundOfAnUnloadedChunkStillFails(helper);
     }
