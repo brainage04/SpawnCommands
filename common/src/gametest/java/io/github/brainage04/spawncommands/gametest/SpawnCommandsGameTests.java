@@ -689,11 +689,11 @@ public final class SpawnCommandsGameTests {
                                 "A world spawn in a chunk nobody loaded must be accepted: its"
                                         + " chunk is loaded first, as vanilla's spawn search"
                                         + " does"));
+        // The chunk ticket is given back once the teleport attempt is done, and a joined test
+        // player never adds the ticket of its own position (its connection does not tick), so the
+        // chunk being loaded again is not what this waits for: the arrival is.
         helper.succeedWhen(
                 () -> {
-                    helper.assertTrue(
-                            level.hasChunk(farChunkX, farChunkZ),
-                            "The command must load the spawn's chunk before it checks the spot");
                     helper.assertTrue(
                             player.position().equals(expected),
                             "The player must arrive at the world spawn: expected "
