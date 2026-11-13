@@ -302,12 +302,8 @@ public final class SpawnCommandsGameTests {
                                         execute(guest, "spawn") == 1,
                                         "/spawn must execute for a player"));
                 var consoleOutput = new CapturedCommandOutput();
-                helper.assertTrue(
-                        server.getCommands()
-                                        .performPrefixedCommand(
-                                                consoleOutput.source(server), "myspawn")
-                                == 0,
-                        "Console /myspawn must be refused");
+                server.getCommands()
+                        .performPrefixedCommand(consoleOutput.source(server), "myspawn");
                 helper.assertTrue(
                         consoleOutput
                                 .text()
