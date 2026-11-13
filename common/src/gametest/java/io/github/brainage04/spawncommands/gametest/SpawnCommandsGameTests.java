@@ -620,16 +620,14 @@ public final class SpawnCommandsGameTests {
         helper.succeed();
     }
 
-    public static void playerOnlyCommandsAnswerNonPlayersThroughModFeedback(
-            GameTestHelper helper) {
+    public static void playerOnlyCommandsAnswerNonPlayersThroughModFeedback(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         for (String command : List.of("spawn", "myspawn", "spawnshare @a")) {
             var output = new CapturedCommandOutput();
             server.getCommands().performPrefixedCommand(output.source(server), command);
             helper.assertTrue(
                     output.text()
-                            .equals(
-                                    "[SpawnCommands] This command can only be used by players!"),
+                            .equals("[SpawnCommands] This command can only be used by players!"),
                     "/"
                             + command
                             + " from the console must get BrainageLib's shared players-only"
@@ -642,7 +640,7 @@ public final class SpawnCommandsGameTests {
     public static void commandsClickForThePlayerThroughModFeedback(GameTestHelper helper) {
         withWorldSpawn(
                 helper,
-                new BlockPos(2, 1, 2),
+                helper.absolutePos(new BlockPos(2, 1, 2)),
                 () -> {
                     try (GameTestPlayer clicked = GameTestPlayer.join(helper, "SpawnClicked")) {
                         clicked.clearMessages();
@@ -650,7 +648,9 @@ public final class SpawnCommandsGameTests {
                         Sent sent = drain(clicked);
                         helper.assertTrue(
                                 sent.messages()
-                                        .equals(List.of("[SpawnCommands] Teleported to world spawn.")),
+                                        .equals(
+                                                List.of(
+                                                        "[SpawnCommands] Teleported to world spawn.")),
                                 "The command must answer the player, got " + sent.messages());
                         helper.assertTrue(
                                 sent.sounds().size() == 1,
