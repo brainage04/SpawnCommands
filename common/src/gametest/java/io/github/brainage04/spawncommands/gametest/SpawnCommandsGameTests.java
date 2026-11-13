@@ -9,6 +9,7 @@ import io.github.brainage04.brainagelib.help.ServerModHelpRegistry;
 import io.github.brainage04.spawncommands.SpawnAccessData;
 import io.github.brainage04.spawncommands.SpawnCommands;
 import io.github.brainage04.spawncommands.SpawnTeleportService;
+import io.netty.util.ReferenceCountUtil;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -21,8 +22,12 @@ import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
+import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
@@ -613,6 +618,82 @@ public final class SpawnCommandsGameTests {
             }
         }
         helper.succeed();
+    }
+
+    public static void playerOnlyCommandsAnswerNonPlayersThroughModFeedback(
+            GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        for (String command : List.of("spawn", "myspawn", "spawnshare @a")) {
+            var output = new CapturedCommandOutput();
+            server.getCommands().performPrefixedCommand(output.source(server), command);
+            helper.assertTrue(
+                    output.text()
+                            .equals(
+                                    "[SpawnCommands] This command can only be used by players!"),
+                    "/"
+                            + command
+                            + " from the console must get BrainageLib's shared players-only"
+                            + " message, got "
+                            + output.text());
+        }
+        helper.succeed();
+    }
+
+    public static void commandsClickForThePlayerThroughModFeedback(GameTestHelper helper) {
+        withWorldSpawn(
+                helper,
+                new BlockPos(2, 1, 2),
+                () -> {
+                    try (GameTestPlayer clicked = GameTestPlayer.join(helper, "SpawnClicked")) {
+                        clicked.clearMessages();
+                        clicked.command("spawn");
+                        Sent sent = drain(clicked);
+                        helper.assertTrue(
+                                sent.messages()
+                                        .equals(List.of("[SpawnCommands] Teleported to world spawn.")),
+                                "The command must answer the player, got " + sent.messages());
+                        helper.assertTrue(
+                                sent.sounds().size() == 1,
+                                "A player command must send one click sound, got "
+                                        + sent.sounds().size());
+                        ClientboundSoundPacket click = sent.sounds().getFirst();
+                        helper.assertTrue(
+                                click.getSound()
+                                                .value()
+                                                .location()
+                                                .equals(
+                                                        SoundEvents.UI_BUTTON_CLICK
+                                                                .value()
+                                                                .location())
+                                        && click.getSource() == SoundSource.UI,
+                                "The click must be vanilla's UI button click, got "
+                                        + click.getSound().value().location()
+                                        + " on "
+                                        + click.getSource());
+                    }
+                });
+        helper.succeed();
+    }
+
+    private record Sent(List<String> messages, List<ClientboundSoundPacket> sounds) {}
+
+    /** Everything the player's client was sent since the last drain, waiting for nothing. */
+    private static Sent drain(GameTestPlayer player) {
+        List<String> messages = new ArrayList<>();
+        List<ClientboundSoundPacket> sounds = new ArrayList<>();
+        player.channel().runPendingTasks();
+        player.channel().flushOutbound();
+        Object outbound;
+        while ((outbound = player.channel().readOutbound()) != null) {
+            if (outbound
+                    instanceof ClientboundSystemChatPacket(Component content, boolean overlay)) {
+                if (!overlay) messages.add(content.getString());
+            } else if (outbound instanceof ClientboundSoundPacket sound) {
+                sounds.add(sound);
+            }
+            ReferenceCountUtil.release(outbound);
+        }
+        return new Sent(messages, sounds);
     }
 
     private static List<String> suggestions(ServerPlayer player, String input) {

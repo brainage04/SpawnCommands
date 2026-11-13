@@ -67,6 +67,14 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 SpawnCommandsGameTests::worldSpawnInPowderSnowIsJudgedWhereItIs);
         register(
                 event,
+                "player_only_commands_answer_non_players_through_mod_feedback",
+                SpawnCommandsGameTests::playerOnlyCommandsAnswerNonPlayersThroughModFeedback);
+        register(
+                event,
+                "commands_click_for_the_player_through_mod_feedback",
+                SpawnCommandsGameTests::commandsClickForThePlayerThroughModFeedback);
+        register(
+                event,
                 "owners_revoke_guests_who_are_offline",
                 SpawnCommandsGameTests::ownersRevokeGuestsWhoAreOffline);
     }

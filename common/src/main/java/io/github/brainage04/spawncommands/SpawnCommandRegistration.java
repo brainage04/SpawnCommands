@@ -62,23 +62,24 @@ public final class SpawnCommandRegistration {
                 .register(dispatcher);
     }
 
-    private static int teleportToWorldSpawn(CommandContext<CommandSourceStack> context)
-            throws CommandSyntaxException {
-        return SpawnTeleportService.teleportToWorldSpawn(
-                context.getSource().getPlayerOrException());
+    private static int teleportToWorldSpawn(CommandContext<CommandSourceStack> context) {
+        ServerPlayer player = SpawnCommands.FEEDBACK.requirePlayer(context.getSource());
+        if (player == null) return 0;
+        return SpawnTeleportService.teleportToWorldSpawn(player);
     }
 
-    private static int teleportToOwnSpawn(CommandContext<CommandSourceStack> context)
-            throws CommandSyntaxException {
-        ServerPlayer player = context.getSource().getPlayerOrException();
+    private static int teleportToOwnSpawn(CommandContext<CommandSourceStack> context) {
+        ServerPlayer player = SpawnCommands.FEEDBACK.requirePlayer(context.getSource());
+        if (player == null) return 0;
         return SpawnTeleportService.teleportToPersonalSpawn(player, player);
     }
 
     private static int teleportToSharedSpawn(CommandContext<CommandSourceStack> context)
             throws CommandSyntaxException {
-        ServerPlayer owner = EntityArgument.getPlayer(context, "player");
         CommandSourceStack source = context.getSource();
-        ServerPlayer guest = source.getPlayerOrException();
+        ServerPlayer guest = SpawnCommands.FEEDBACK.requirePlayer(source);
+        if (guest == null) return 0;
+        ServerPlayer owner = EntityArgument.getPlayer(context, "player");
         if (!SpawnAccessData.get(source.getServer()).allows(owner.getUUID(), guest.getUUID())) {
             return SpawnCommands.FEEDBACK.failure(
                     source, "%s has not shared their spawn with you.", owner.getScoreboardName());
@@ -89,7 +90,8 @@ public final class SpawnCommandRegistration {
     private static int changeAccess(CommandContext<CommandSourceStack> context, boolean grant)
             throws CommandSyntaxException {
         CommandSourceStack source = context.getSource();
-        ServerPlayer owner = source.getPlayerOrException();
+        ServerPlayer owner = SpawnCommands.FEEDBACK.requirePlayer(source);
+        if (owner == null) return 0;
         SpawnAccessData access = SpawnAccessData.get(source.getServer());
         Collection<UUID> playerIds =
                 grant
@@ -115,10 +117,12 @@ public final class SpawnCommandRegistration {
         return changed;
     }
 
+    // A completion request from a source that is not a player gets no suggestions and no message:
+    // requirePlayer would answer a Tab press with chat.
     private static CompletableFuture<Suggestions> suggestGuests(
-            CommandContext<CommandSourceStack> context, SuggestionsBuilder builder)
-            throws CommandSyntaxException {
-        ServerPlayer owner = context.getSource().getPlayerOrException();
+            CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        ServerPlayer owner = context.getSource().getPlayer();
+        if (owner == null) return Suggestions.empty();
         UserNameToIdResolver names = context.getSource().getServer().services().nameToIdCache();
         return SharedSuggestionProvider.suggest(
                 SpawnAccessData.get(context.getSource().getServer())
