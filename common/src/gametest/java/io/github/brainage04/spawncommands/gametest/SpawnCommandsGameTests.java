@@ -12,6 +12,7 @@ import io.github.brainage04.spawncommands.SpawnTeleportService;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -658,16 +659,16 @@ public final class SpawnCommandsGameTests {
                     !level.hasChunk(otherChunkX, otherChunkZ),
                     "The /tp destination's chunk must not be loaded before /tp");
             Vec3 teleported = Vec3.atBottomCenterOf(other);
+            // Vec3Argument does not take the exponent notation Double.toString uses past 10^7.
             execute(
                     withServerPermissions(moved),
-                    "tp "
-                            + moved.getScoreboardName()
-                            + " "
-                            + teleported.x()
-                            + " "
-                            + teleported.y()
-                            + " "
-                            + teleported.z());
+                    String.format(
+                            Locale.ROOT,
+                            "tp %s %.1f %.1f %.1f",
+                            moved.getScoreboardName(),
+                            teleported.x(),
+                            teleported.y(),
+                            teleported.z()));
             helper.assertTrue(
                     moved.position().equals(teleported),
                     "Vanilla /tp must move the player to the unloaded chunk: expected "
