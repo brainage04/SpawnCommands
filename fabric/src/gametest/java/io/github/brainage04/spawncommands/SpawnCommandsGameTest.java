@@ -89,6 +89,11 @@ public final class SpawnCommandsGameTest {
     }
 
     @GameTest
+    public void spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer(GameTestHelper helper) {
+        SpawnCommandsGameTests.spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer(helper);
+    }
+
+    @GameTest
     public void vanillaTpLeavesTheDestinationChunkUnloaded(GameTestHelper helper) {
         SpawnCommandsGameTests.vanillaTpLeavesTheDestinationChunkUnloaded(helper);
     }

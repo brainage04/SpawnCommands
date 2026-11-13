@@ -67,6 +67,10 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 SpawnCommandsGameTests::worldSpawnInPowderSnowIsJudgedWhereItIs);
         register(
                 event,
+                "spawns_in_lava_or_over_the_void_fail_without_moving_the_player",
+                SpawnCommandsGameTests::spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer);
+        register(
+                event,
                 "world_spawn_in_an_unloaded_chunk_teleports_after_loading_it",
                 SpawnCommandsGameTests::worldSpawnInAnUnloadedChunkTeleportsAfterLoadingIt);
         register(
