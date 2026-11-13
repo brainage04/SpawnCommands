@@ -23,6 +23,7 @@ Personal spawn points continue to use vanilla beds, respawn anchors, dimensions,
 - `/spawnshare <players>` – grants the selected online players access to your personal spawn.
 - `/spawnshare revoke <players>` – revokes that access, also from players who are offline. It suggests the players who have access.
 - `/spawncommands` or `/spawncommands help` – lists these commands.
+- `/spawn`, `/myspawn` and `/spawnof` refuse a destination in lava or over the void, where no block lies below it down to the minimum build height, and leave you where you are with a message.
 
 Messages use BrainageLib's style: a grey `[SpawnCommands]` prefix with a green body for success and a red body for errors. SpawnCommands is listed in BrainageLib's `/servermods` help and first-join notice.
 

@@ -83,6 +83,11 @@ public final class SpawnCommandsGameTest {
         SpawnCommandsGameTests.worldSpawnInAnUnloadedChunkTeleportsAfterLoadingIt(helper);
     }
 
+    @GameTest
+    public void spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer(GameTestHelper helper) {
+        SpawnCommandsGameTests.spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer(helper);
+    }
+
     @GameTest(maxTicks = 1000000)
     public void aWorldSpawnInsideTheGroundOfAnUnloadedChunkStillFails(GameTestHelper helper) {
         SpawnCommandsGameTests.aWorldSpawnInsideTheGroundOfAnUnloadedChunkStillFails(helper);
