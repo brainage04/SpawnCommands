@@ -67,6 +67,10 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 SpawnCommandsGameTests::worldSpawnInPowderSnowIsJudgedWhereItIs);
         register(
                 event,
+                "spawns_in_lava_or_over_the_void_fail_without_moving_the_player",
+                SpawnCommandsGameTests::spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer);
+        register(
+                event,
                 "owners_revoke_guests_who_are_offline",
                 SpawnCommandsGameTests::ownersRevokeGuestsWhoAreOffline);
     }

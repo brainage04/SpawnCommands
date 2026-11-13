@@ -18,10 +18,12 @@ import java.util.UUID;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.SectionPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -611,6 +613,65 @@ public final class SpawnCommandsGameTests {
                         execute(rejoined.player(), "spawnof SpawnKeeper") == 0,
                         "A revoked guest must be denied after rejoining");
             }
+        }
+        helper.succeed();
+    }
+
+    public static void spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        try (GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnDangerous")) {
+            ServerPlayer player = joined.player();
+            joined.moveTo(helper, new BlockPos(5, 1, 5));
+            Vec3 before = player.position();
+
+            BlockPos lava = new BlockPos(2, 1, 2);
+            helper.setBlock(lava, Blocks.LAVA);
+            joined.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    helper.absolutePos(lava),
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 0,
+                                    "A world spawn in lava must fail"));
+            helper.assertTrue(
+                    player.position().equals(before), "A spawn in lava must not move the player");
+            assertMessage(
+                    helper,
+                    joined,
+                    "[SpawnCommands] Could not teleport to world spawn because it is in lava.",
+                    0xFF5555);
+
+            BlockPos overVoid = helper.absolutePos(new BlockPos(5, 1, 5)).offset(2_000, 0, 2_000);
+            level.getChunk(
+                    SectionPos.blockToSectionCoord(overVoid.getX()),
+                    SectionPos.blockToSectionCoord(overVoid.getZ()));
+            for (int y = level.getMinY(); y <= overVoid.getY(); y++) {
+                level.setBlockAndUpdate(
+                        new BlockPos(overVoid.getX(), y, overVoid.getZ()),
+                        Blocks.AIR.defaultBlockState());
+            }
+            // A forced respawn point is where an operator's /spawnpoint puts it
+            // (SetSpawnCommand.java:21, ServerPlayer.java:1121-1130).
+            player.setRespawnPosition(
+                    new ServerPlayer.RespawnConfig(
+                            LevelData.RespawnData.of(
+                                    level.dimension(), overVoid, 0.0F, 0.0F),
+                            true),
+                    false);
+            joined.clearMessages();
+            helper.assertTrue(
+                    execute(player, "myspawn") == 0, "A personal spawn over the void must fail");
+            helper.assertTrue(
+                    player.position().equals(before),
+                    "A personal spawn over the void must not move the player");
+            assertMessage(
+                    helper,
+                    joined,
+                    "[SpawnCommands] Could not teleport to your personal spawn because it is over"
+                            + " the void.",
+                    0xFF5555);
         }
         helper.succeed();
     }
