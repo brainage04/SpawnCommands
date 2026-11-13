@@ -75,8 +75,18 @@ public final class SpawnCommandsGameTest {
         SpawnCommandsGameTests.worldSpawnInPowderSnowIsJudgedWhereItIs(helper);
     }
 
+    @GameTest(maxTicks = 2000)
+    public void worldSpawnInAnUnloadedChunkTeleportsAfterLoadingIt(GameTestHelper helper) {
+        SpawnCommandsGameTests.worldSpawnInAnUnloadedChunkTeleportsAfterLoadingIt(helper);
+    }
+
+    @GameTest(maxTicks = 2000)
+    public void aWorldSpawnInsideTheGroundOfAnUnloadedChunkStillFails(GameTestHelper helper) {
+        SpawnCommandsGameTests.aWorldSpawnInsideTheGroundOfAnUnloadedChunkStillFails(helper);
+    }
+
     @GameTest
-    public void worldSpawnInAnUnloadedChunkTeleportsLikeVanilla(GameTestHelper helper) {
-        SpawnCommandsGameTests.worldSpawnInAnUnloadedChunkTeleportsLikeVanilla(helper);
+    public void vanillaTpLeavesTheDestinationChunkUnloaded(GameTestHelper helper) {
+        SpawnCommandsGameTests.vanillaTpLeavesTheDestinationChunkUnloaded(helper);
     }
 }

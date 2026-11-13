@@ -38,6 +38,7 @@ import net.minecraft.world.level.block.RespawnAnchorBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.gamerules.GameRules;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.phys.Vec3;
 
@@ -175,6 +176,11 @@ public final class SpawnCommandsGameTests {
         LevelData.RespawnData previous = overworld.getLevelData().getRespawnData();
         BlockPos origin = helper.absolutePos(new BlockPos(2, 2, 2));
         BlockPos destination = new BlockPos(origin.getX(), 80, origin.getZ());
+        // The spawn's chunk is loaded here, so the teleport is immediate; a spawn whose chunk
+        // nobody has loaded is covered by the unloaded-chunk tests.
+        nether.getChunk(
+                SectionPos.blockToSectionCoord(destination.getX()),
+                SectionPos.blockToSectionCoord(destination.getZ()));
         try (GameTestPlayer mock = GameTestPlayer.mock(helper)) {
             ServerPlayer player = mock.player();
             nether.setRespawnData(
@@ -618,38 +624,9 @@ public final class SpawnCommandsGameTests {
         helper.succeed();
     }
 
-    public static void worldSpawnInAnUnloadedChunkTeleportsLikeVanilla(GameTestHelper helper) {
+    public static void vanillaTpLeavesTheDestinationChunkUnloaded(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        try (GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnFaraway");
-                GameTestPlayer vanilla = GameTestPlayer.join(helper, "SpawnVanilla")) {
-            ServerPlayer player = joined.player();
-            joined.moveTo(helper, new BlockPos(5, 1, 5));
-            BlockPos far = helper.absolutePos(new BlockPos(5, 1, 5)).offset(100_000, 0, 0);
-            int farChunkX = SectionPos.blockToSectionCoord(far.getX());
-            int farChunkZ = SectionPos.blockToSectionCoord(far.getZ());
-            helper.assertTrue(
-                    !level.hasChunk(farChunkX, farChunkZ),
-                    "The spawn's chunk must not be loaded before /spawn");
-            Vec3 expected = Vec3.atBottomCenterOf(far);
-            withWorldSpawn(
-                    helper,
-                    far,
-                    () ->
-                            helper.assertTrue(
-                                    execute(player, "spawn") == 1,
-                                    "A world spawn in a chunk nobody loaded must teleport, as"
-                                            + " vanilla /tp does"));
-            helper.assertTrue(
-                    player.position().equals(expected),
-                    "The player must arrive at the world spawn: expected "
-                            + expected
-                            + ", landed on "
-                            + player.position());
-            helper.assertTrue(
-                    !level.hasChunk(farChunkX, farChunkZ),
-                    "The command must not load the spawn chunk itself, as /tp does not: the"
-                            + " player's own chunk ticket loads it");
-
+        try (GameTestPlayer vanilla = GameTestPlayer.join(helper, "SpawnVanilla")) {
             ServerPlayer moved = vanilla.player();
             vanilla.moveTo(helper, new BlockPos(3, 1, 3));
             BlockPos other = helper.absolutePos(new BlockPos(3, 1, 3)).offset(100_000, 0, 20_000);
@@ -677,9 +654,96 @@ public final class SpawnCommandsGameTests {
                             + moved.position());
             helper.assertTrue(
                     !level.hasChunk(otherChunkX, otherChunkZ),
-                    "Vanilla /tp must not load the destination chunk either");
+                    "Vanilla /tp must not load the destination chunk either: it moves the player"
+                            + " and lets the player's own chunk ticket load the chunk");
         }
         helper.succeed();
+    }
+
+    public static void worldSpawnInAnUnloadedChunkTeleportsAfterLoadingIt(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        // Closed inside the final assertion, which runs after this method has returned.
+        GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnFaraway");
+        ServerPlayer player = joined.player();
+        joined.moveTo(helper, new BlockPos(5, 1, 5));
+        BlockPos here = helper.absolutePos(new BlockPos(5, 1, 5));
+        // The GameTest world is flat (WorldPresets.FLAT_ALL_DIMENSIONS, GameTestServer.java:122),
+        // so the surface of a chunk far away is at the surface height here.
+        BlockPos far =
+                new BlockPos(
+                        here.getX() + 100_000,
+                        level.getHeight(Heightmap.Types.MOTION_BLOCKING, here.getX(), here.getZ()),
+                        here.getZ());
+        int farChunkX = SectionPos.blockToSectionCoord(far.getX());
+        int farChunkZ = SectionPos.blockToSectionCoord(far.getZ());
+        helper.assertTrue(
+                !level.hasChunk(farChunkX, farChunkZ),
+                "The spawn's chunk must not be loaded before /spawn");
+        Vec3 expected = Vec3.atBottomCenterOf(far);
+        withWorldSpawn(
+                helper,
+                far,
+                () ->
+                        helper.assertTrue(
+                                execute(player, "spawn") == 1,
+                                "A world spawn in a chunk nobody loaded must be accepted: its"
+                                        + " chunk is loaded first, as vanilla's spawn search"
+                                        + " does"));
+        helper.succeedWhen(
+                () -> {
+                    helper.assertTrue(
+                            level.hasChunk(farChunkX, farChunkZ),
+                            "The command must load the spawn's chunk before it checks the spot");
+                    helper.assertTrue(
+                            player.position().equals(expected),
+                            "The player must arrive at the world spawn: expected "
+                                    + expected
+                                    + ", landed on "
+                                    + player.position());
+                    joined.close();
+                });
+    }
+
+    public static void aWorldSpawnInsideTheGroundOfAnUnloadedChunkStillFails(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        // Closed inside the final assertion, which runs after this method has returned.
+        GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnBuriedFaraway");
+        ServerPlayer player = joined.player();
+        joined.moveTo(helper, new BlockPos(5, 1, 5));
+        BlockPos buried =
+                helper.absolutePos(new BlockPos(5, 1, 5))
+                        .offset(100_000, 0, 0)
+                        .atY(level.getMinY());
+        int chunkX = SectionPos.blockToSectionCoord(buried.getX());
+        int chunkZ = SectionPos.blockToSectionCoord(buried.getZ());
+        helper.assertTrue(
+                !level.hasChunk(chunkX, chunkZ),
+                "The buried spawn's chunk must not be loaded before /spawn");
+        Vec3 before = player.position();
+        joined.clearMessages();
+        withWorldSpawn(
+                helper,
+                buried,
+                () ->
+                        helper.assertTrue(
+                                execute(player, "spawn") == 1,
+                                "A world spawn in a chunk nobody loaded is accepted while its"
+                                        + " chunk loads"));
+        helper.succeedWhen(
+                () -> {
+                    helper.assertTrue(
+                            joined.received(
+                                    "[SpawnCommands] Could not teleport to world spawn because it"
+                                            + " is obstructed."),
+                            "A world spawn inside the ground of a chunk nobody loaded must fail"
+                                    + " once the chunk is loaded, got "
+                                    + joined.messageTexts());
+                    helper.assertTrue(
+                            player.position().equals(before),
+                            "A world spawn in an unloaded chunk must not move the player");
+                    joined.close();
+                });
     }
 
     private static List<String> suggestions(ServerPlayer player, String input) {

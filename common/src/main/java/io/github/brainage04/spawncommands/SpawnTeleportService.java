@@ -1,12 +1,18 @@
 package io.github.brainage04.spawncommands;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.TicketType;
 import net.minecraft.world.entity.Pose;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.phys.AABB;
@@ -25,14 +31,35 @@ public final class SpawnTeleportService {
             SpawnCommands.FEEDBACK.error(player, "The world spawn dimension is unavailable.");
             return 0;
         }
-        Vec3 destination = Vec3.atBottomCenterOf(spawn.pos());
-        if (chunksLoaded(level, player, destination)) {
-            destination = onTopOf(level, spawn.pos());
-            if (!fits(level, player, destination)) {
-                SpawnCommands.FEEDBACK.error(
-                        player, "Could not teleport to world spawn because it is obstructed.");
-                return 0;
-            }
+        List<ChunkPos> unloaded = chunksToLoad(level, player, Vec3.atBottomCenterOf(spawn.pos()));
+        if (unloaded.isEmpty()) {
+            return arriveAtWorldSpawn(player, level, spawn);
+        }
+        // The checks below read blocks, so the chunk has to be loaded first, and loading it here
+        // would generate it on the server thread. Vanilla loads a chunk it must inspect without
+        // blocking instead (PlayerSpawnFinder.java:114-121); the answer reaches the player from the
+        // callback a few ticks later, and the command reports that it was accepted.
+        load(level, unloaded)
+                .whenCompleteAsync(
+                        (ignored, failure) -> {
+                            if (failure != null) {
+                                SpawnCommands.FEEDBACK.error(
+                                        player, "Could not teleport to world spawn.");
+                            } else if (!player.hasDisconnected()) {
+                                arriveAtWorldSpawn(player, level, spawn);
+                            }
+                        },
+                        server);
+        return 1;
+    }
+
+    private static int arriveAtWorldSpawn(
+            ServerPlayer player, ServerLevel level, LevelData.RespawnData spawn) {
+        Vec3 destination = onTopOf(level, spawn.pos());
+        if (!fits(level, player, destination)) {
+            SpawnCommands.FEEDBACK.error(
+                    player, "Could not teleport to world spawn because it is obstructed.");
+            return 0;
         }
         return teleport(player, level, destination, spawn.yaw(), spawn.pitch(), "world spawn");
     }
@@ -51,29 +78,44 @@ public final class SpawnTeleportService {
     }
 
     /**
-     * Whether every chunk under the standing box at {@code destination} is loaded. Vanilla's /tp
-     * does not load or generate the destination itself: it moves the player, and the player's own
-     * position then adds the chunk tickets that generate the chunk (ServerChunkCache.move,
-     * ServerChunkCache.java:513-520, calls ChunkMap.move, ChunkMap.java:1064-1101, which calls
-     * DistanceManager.addPlayer, DistanceManager.java:109-116, and recentres the client's view in
-     * applyChunkTrackingView, ChunkMap.java:1112-1122). Reading a block here would generate the
-     * chunk on the server thread instead, so a chunk that nobody has loaded is left to the
-     * teleport, like /tp, and the world spawn lands on its block's bottom centre, the position
+     * The chunks under the standing box at {@code destination} that are not loaded. Nothing here
+     * reads a block: the floor lookup needs the chunk, so the question is asked about the position
      * vanilla's own world spawn uses before its height search
      * (TeleportTransition.findAdjustedSharedSpawnPos, TeleportTransition.java:93-95).
      */
-    private static boolean chunksLoaded(ServerLevel level, ServerPlayer player, Vec3 destination) {
+    private static List<ChunkPos> chunksToLoad(
+            ServerLevel level, ServerPlayer player, Vec3 destination) {
         AABB standing = player.getLocalBoundsForPose(Pose.STANDING).move(destination);
+        Set<ChunkPos> unloaded = new LinkedHashSet<>();
         for (int x = SectionPos.posToSectionCoord(standing.minX);
                 x <= SectionPos.posToSectionCoord(standing.maxX);
                 x++) {
             for (int z = SectionPos.posToSectionCoord(standing.minZ);
                     z <= SectionPos.posToSectionCoord(standing.maxZ);
                     z++) {
-                if (!level.hasChunk(x, z)) return false;
+                if (!level.hasChunk(x, z)) unloaded.add(new ChunkPos(x, z));
             }
         }
-        return true;
+        return new ArrayList<>(unloaded);
+    }
+
+    /**
+     * Loads {@code chunks} to full without blocking the server thread, the way vanilla's spawn
+     * search loads the chunk it is about to inspect (PlayerSpawnFinder.java:114-121). The ticket
+     * holds the chunk until its load finishes and then expires, because it can only expire once the
+     * chunk is unloaded or ready for saving (TicketStorage.java:290-300); TicketType.FORCED would
+     * keep the chunk loaded for good.
+     */
+    private static CompletableFuture<?> load(ServerLevel level, List<ChunkPos> chunks) {
+        CompletableFuture<?>[] loads =
+                chunks.stream()
+                        .map(
+                                pos ->
+                                        level.getChunkSource()
+                                                .addTicketAndLoadWithRadius(
+                                                        TicketType.SPAWN_SEARCH, pos, 0))
+                        .toArray(CompletableFuture<?>[]::new);
+        return CompletableFuture.allOf(loads);
     }
 
     /**
@@ -83,8 +125,8 @@ public final class SpawnTeleportService {
      * destination height. Liquids do not count, as in that check.
      */
     private static boolean fits(ServerLevel level, ServerPlayer player, Vec3 destination) {
-        // Only called for loaded chunks: block collisions treat a chunk that is not loaded as
-        // empty (BlockCollisions.java:86-87, Level.getChunkForCollisions).
+        // Only called once every chunk under the box is loaded: block collisions treat a chunk that
+        // is not loaded as empty (BlockCollisions.java:86-87, Level.getChunkForCollisions).
         // canDismountTo uses the player's own collision context, which shapes scaffolding and
         // powder snow by where the player stands now (ScaffoldingBlock.java:130-139,
         // PowderSnowBlock.java:116-131). A dismount happens at about that height and a teleport

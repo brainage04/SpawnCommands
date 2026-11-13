@@ -17,7 +17,7 @@ Personal spawn points continue to use vanilla beds, respawn anchors, dimensions,
 
 ## Commands
 
-- `/spawn` – teleports you to the world's configured spawn dimension, position and rotation. You land on top of the floor in the spawn block: farmland, a slab, a floor built over the spawn, or the top of a fence or wall just below it. If there is no room for you there, even to crawl, the command fails and you stay where you are. A spawn in a chunk that nobody has loaded still teleports, exactly as vanilla `/tp` does: you land on the bottom centre of the spawn block, the spot is only checked once its chunk is loaded, and that chunk loads as you arrive.
+- `/spawn` – teleports you to the world's configured spawn dimension, position and rotation. You land on top of the floor in the spawn block: farmland, a slab, a floor built over the spawn, or the top of a fence or wall just below it. If there is no room for you there, even to crawl, the command fails and you stay where you are. A spawn in a chunk that nobody has loaded still works: its chunk is loaded in the background first, which vanilla's own spawn search does too, and the check and the teleport follow once it is there, so you arrive a moment later.
 - `/myspawn` – teleports you to your vanilla personal respawn point.
 - `/spawnof <player>` – teleports you to an online player's personal spawn if they shared access with you.
 - `/spawnshare <players>` – grants the selected online players access to your personal spawn.

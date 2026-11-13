@@ -67,8 +67,16 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 SpawnCommandsGameTests::worldSpawnInPowderSnowIsJudgedWhereItIs);
         register(
                 event,
-                "world_spawn_in_an_unloaded_chunk_teleports_like_vanilla",
-                SpawnCommandsGameTests::worldSpawnInAnUnloadedChunkTeleportsLikeVanilla);
+                "world_spawn_in_an_unloaded_chunk_teleports_after_loading_it",
+                SpawnCommandsGameTests::worldSpawnInAnUnloadedChunkTeleportsAfterLoadingIt);
+        register(
+                event,
+                "a_world_spawn_inside_the_ground_of_an_unloaded_chunk_still_fails",
+                SpawnCommandsGameTests::aWorldSpawnInsideTheGroundOfAnUnloadedChunkStillFails);
+        register(
+                event,
+                "vanilla_tp_leaves_the_destination_chunk_unloaded",
+                SpawnCommandsGameTests::vanillaTpLeavesTheDestinationChunkUnloaded);
         register(
                 event,
                 "owners_revoke_guests_who_are_offline",
