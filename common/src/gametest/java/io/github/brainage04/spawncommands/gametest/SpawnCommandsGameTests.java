@@ -660,6 +660,17 @@ public final class SpawnCommandsGameTests {
         helper.succeed();
     }
 
+    // The GameTest server runs its ticks as fast as it can, measured between 20 and 6600 ticks a
+    // second on the machines that ran these tests on 14 Nov 2026, so a tick budget cannot bound a
+    // wait for a chunk load: the load needs wall time, and the test itself checks that instead.
+    private static final long LOAD_TIMEOUT_NANOS = 30_000_000_000L;
+
+    private static void assertStillLoading(GameTestHelper helper, long started) {
+        if (System.nanoTime() - started > LOAD_TIMEOUT_NANOS) {
+            helper.fail("The destination chunk did not load within 30 s of wall time");
+        }
+    }
+
     public static void worldSpawnInAnUnloadedChunkTeleportsAfterLoadingIt(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         // Closed inside the final assertion, which runs after this method has returned.
@@ -692,8 +703,10 @@ public final class SpawnCommandsGameTests {
         // The chunk ticket is given back once the teleport attempt is done, and a joined test
         // player never adds the ticket of its own position (its connection does not tick), so the
         // chunk being loaded again is not what this waits for: the arrival is.
+        long started = System.nanoTime();
         helper.succeedWhen(
                 () -> {
+                    assertStillLoading(helper, started);
                     helper.assertTrue(
                             player.position().equals(expected),
                             "The player must arrive at the world spawn: expected "
@@ -730,8 +743,10 @@ public final class SpawnCommandsGameTests {
                                 execute(player, "spawn") == 1,
                                 "A world spawn in a chunk nobody loaded is accepted while its"
                                         + " chunk loads"));
+        long started = System.nanoTime();
         helper.succeedWhen(
                 () -> {
+                    assertStillLoading(helper, started);
                     helper.assertTrue(
                             joined.received(
                                     "[SpawnCommands] Could not teleport to world spawn because it"
