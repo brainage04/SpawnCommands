@@ -33,6 +33,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
@@ -938,7 +939,9 @@ public final class SpawnCommandsGameTests {
 
     /**
      * A world spawn with lava at head height, where the column below the feet holds none, fails;
-     * with the lava a block higher, above the player's 1.8 block box, it still works.
+     * with the lava a block higher, above the player's 1.8 block box, it still works. Lava beside
+     * the spawn fails a player whose box reaches 0.0005 blocks into it, and not one whose box stops
+     * 0.0005 blocks short.
      */
     public static void aSpawnWithLavaAtHeadHeightFails(GameTestHelper helper) {
         try (GameTestPlayer joined =
@@ -976,6 +979,45 @@ public final class SpawnCommandsGameTests {
                                     execute(player, "spawn") == 1,
                                     "A world spawn with lava above the player's head must still"
                                             + " work, got "
+                                            + joined.messageTexts()));
+
+            // Lava hurts a box that overlaps it by more than 1e-7 (Entity.java:1346, 1376,
+            // 1426-1428; AABB.java:401-409). The scale makes the box 1.001 blocks wide, and the
+            // attribute only resizes the box on the player's next tick (LivingEntity.java:1116,
+            // 1142-1143).
+            helper.setBlock(new BlockPos(2, 3, 2), Blocks.AIR);
+            helper.setBlock(new BlockPos(3, 1, 2), Blocks.LAVA);
+            player.getAttribute(Attributes.SCALE).setBaseValue(1.001 / 0.6);
+            player.refreshDimensions();
+            Vec3 atSpawn = player.position();
+            joined.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    spawn,
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 0,
+                                    "A world spawn whose box reaches 0.0005 blocks into lava must"
+                                            + " fail"));
+            helper.assertTrue(
+                    player.position().equals(atSpawn),
+                    "A spawn whose box reaches into lava must not move the player");
+            assertMessage(
+                    helper,
+                    joined,
+                    "[SpawnCommands] Could not teleport to world spawn because it is in lava.",
+                    0xFF5555);
+            player.getAttribute(Attributes.SCALE).setBaseValue(0.999 / 0.6);
+            player.refreshDimensions();
+            joined.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    spawn,
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 1,
+                                    "A world spawn whose box stops 0.0005 blocks short of lava must"
+                                            + " still work, got "
                                             + joined.messageTexts()));
         }
         helper.succeed();
