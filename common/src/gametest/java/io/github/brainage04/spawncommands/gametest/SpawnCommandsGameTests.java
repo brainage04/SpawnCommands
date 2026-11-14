@@ -1187,7 +1187,9 @@ public final class SpawnCommandsGameTests {
     /**
      * Lava cannot hurt a creative or spectator player, or one whose Fire Resistance never ends, so
      * a spawn in lava still takes them there, while a spawn over the void, whose damage gets past
-     * their protection, is still refused. Fire Resistance that runs out does not count.
+     * their protection, is still refused. Fire Resistance that runs out does not count. With the
+     * fire_damage game rule off lava hurts nobody (Player.java:664-665), so the spawn takes a
+     * survival player there too.
      */
     public static void lavaDoesNotStopACreativeOrSpectatorPlayer(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
@@ -1256,6 +1258,31 @@ public final class SpawnCommandsGameTests {
             helper.assertTrue(
                     survivor.blockPosition().equals(lava),
                     "The fire resistant player must arrive in the lava, got "
+                            + survivor.position());
+
+            fireproof.moveTo(helper, new BlockPos(1, 1, 1));
+            survivor.removeEffect(MobEffects.FIRE_RESISTANCE);
+            GameRules rules = level.getGameRules();
+            boolean fireDamage = rules.get(GameRules.FIRE_DAMAGE);
+            fireproof.clearMessages();
+            // Set and restored within this call, so no other test sees the rule off.
+            rules.set(GameRules.FIRE_DAMAGE, false, level.getServer());
+            try {
+                withWorldSpawn(
+                        helper,
+                        lava,
+                        () ->
+                                helper.assertTrue(
+                                        execute(survivor, "spawn") == 1,
+                                        "A world spawn in lava must take a player there while fire"
+                                                + " damage is off, got "
+                                                + fireproof.messageTexts()));
+            } finally {
+                rules.set(GameRules.FIRE_DAMAGE, fireDamage, level.getServer());
+            }
+            helper.assertTrue(
+                    survivor.blockPosition().equals(lava),
+                    "The player must arrive in the lava while fire damage is off, got "
                             + survivor.position());
 
             ServerPlayer player = creative.player();
