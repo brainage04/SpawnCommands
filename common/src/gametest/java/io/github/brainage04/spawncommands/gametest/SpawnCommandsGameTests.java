@@ -33,6 +33,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -938,10 +939,10 @@ public final class SpawnCommandsGameTests {
     }
 
     /**
-     * A world spawn with lava at head height, where the column below the feet holds none, fails;
-     * with the lava a block higher, above the player's 1.8 block box, it still works. Lava beside
-     * the spawn fails a player whose box reaches 0.0005 blocks into it, and not one whose box stops
-     * 0.0005 blocks short.
+     * A world spawn with lava at head height, where the column below the feet holds none, fails,
+     * also for a player who crawls now and could stand up there; with the lava a block higher,
+     * above the player's 1.8 block box, it still works. Lava beside the spawn fails a player whose
+     * box reaches 0.0005 blocks into it, and not one whose box stops 0.0005 blocks short.
      */
     public static void aSpawnWithLavaAtHeadHeightFails(GameTestHelper helper) {
         try (GameTestPlayer joined =
@@ -967,6 +968,27 @@ public final class SpawnCommandsGameTests {
                     joined,
                     "[SpawnCommands] Could not teleport to world spawn because it is in lava.",
                     0xFF5555);
+
+            // A crawling player's box is 0.6 blocks tall (Avatar.java:28), under the lava.
+            player.setPose(Pose.SWIMMING);
+            joined.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    spawn,
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 0,
+                                    "A world spawn with lava at head height must fail for a"
+                                            + " crawling player"));
+            helper.assertTrue(
+                    player.position().equals(before),
+                    "A spawn with lava at head height must not move a crawling player");
+            assertMessage(
+                    helper,
+                    joined,
+                    "[SpawnCommands] Could not teleport to world spawn because it is in lava.",
+                    0xFF5555);
+            player.setPose(Pose.STANDING);
 
             helper.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
             helper.setBlock(new BlockPos(2, 3, 2), Blocks.LAVA);
