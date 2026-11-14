@@ -371,7 +371,9 @@ public final class SpawnTeleportService {
      */
     private static Deadly deadlyAt(ServerLevel level, ServerPlayer player, Vec3 destination) {
         AABB box =
-                player.getBoundingBox().move(destination.subtract(player.position())).deflate(0.001);
+                player.getBoundingBox()
+                        .move(destination.subtract(player.position()))
+                        .deflate(0.001);
         for (BlockPos pos : BlockPos.betweenClosed(box)) {
             FluidState fluid = level.getFluidState(pos);
             if (fluid.is(FluidTags.LAVA) && pos.getY() + fluid.getHeight(level, pos) >= box.minY) {
