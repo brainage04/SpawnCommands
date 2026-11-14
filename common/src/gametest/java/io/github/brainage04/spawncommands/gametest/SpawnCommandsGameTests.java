@@ -31,6 +31,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Pose;
@@ -1046,16 +1048,18 @@ public final class SpawnCommandsGameTests {
     }
 
     /**
-     * Lava cannot hurt a creative or spectator player, so a spawn in lava still takes them there,
-     * while a spawn over the void, whose damage gets past their protection, is still refused.
+     * Lava cannot hurt a creative or spectator player, or one whose Fire Resistance never ends, so
+     * a spawn in lava still takes them there, while a spawn over the void, whose damage gets past
+     * their protection, is still refused. Fire Resistance that runs out does not count.
      */
     public static void lavaDoesNotStopACreativeOrSpectatorPlayer(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         try (GameTestPlayer creative =
                         GameTestPlayer.join(helper, "SpawnCreative").gameMode(GameType.CREATIVE);
                 GameTestPlayer spectator =
-                        GameTestPlayer.join(helper, "SpawnSpectator")
-                                .gameMode(GameType.SPECTATOR)) {
+                        GameTestPlayer.join(helper, "SpawnSpectator").gameMode(GameType.SPECTATOR);
+                GameTestPlayer fireproof =
+                        GameTestPlayer.join(helper, "SpawnFireproof").gameMode(GameType.SURVIVAL)) {
             BlockPos lava = helper.absolutePos(new BlockPos(4, 1, 2));
             helper.setBlock(new BlockPos(4, 1, 2), Blocks.LAVA);
             for (GameTestPlayer joined : List.of(creative, spectator)) {
@@ -1076,6 +1080,46 @@ public final class SpawnCommandsGameTests {
                         player.blockPosition().equals(lava),
                         "The player must arrive in the lava, got " + player.position());
             }
+
+            ServerPlayer survivor = fireproof.player();
+            fireproof.moveTo(helper, new BlockPos(1, 1, 1));
+            survivor.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, 9600));
+            Vec3 outside = survivor.position();
+            fireproof.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    lava,
+                    () ->
+                            helper.assertTrue(
+                                    execute(survivor, "spawn") == 0,
+                                    "A world spawn in lava must fail while Fire Resistance can run"
+                                            + " out"));
+            helper.assertTrue(
+                    survivor.position().equals(outside),
+                    "A spawn in lava must not move a player whose Fire Resistance can run out");
+            assertMessage(
+                    helper,
+                    fireproof,
+                    "[SpawnCommands] Could not teleport to world spawn because it is in lava.",
+                    0xFF5555);
+            survivor.removeEffect(MobEffects.FIRE_RESISTANCE);
+            survivor.addEffect(
+                    new MobEffectInstance(
+                            MobEffects.FIRE_RESISTANCE, MobEffectInstance.INFINITE_DURATION));
+            fireproof.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    lava,
+                    () ->
+                            helper.assertTrue(
+                                    execute(survivor, "spawn") == 1,
+                                    "A world spawn in lava must take a player whose Fire"
+                                            + " Resistance never ends there, got "
+                                            + fireproof.messageTexts()));
+            helper.assertTrue(
+                    survivor.blockPosition().equals(lava),
+                    "The fire resistant player must arrive in the lava, got "
+                            + survivor.position());
 
             ServerPlayer player = creative.player();
             creative.moveTo(helper, new BlockPos(1, 1, 1));
