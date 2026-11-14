@@ -13,6 +13,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.TicketType;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.level.ChunkPos;
@@ -370,11 +371,18 @@ public final class SpawnTeleportService {
      * against each fluid's height (Entity.java:4211-4213, EntityFluidInteraction.java:40-73).
      */
     private static Deadly deadlyAt(ServerLevel level, ServerPlayer player, Vec3 destination) {
+        // Lava does not hurt a creative or spectator player (Player.java:677-679), who only sinks
+        // through it; the void's damage gets past that (DamageTypeTags.BYPASSES_INVULNERABILITY).
+        boolean lavaHurts =
+                !player.getAbilities().invulnerable
+                        || level.damageSources().lava().is(DamageTypeTags.BYPASSES_INVULNERABILITY);
         AABB box =
                 player.getBoundingBox().move(destination.subtract(player.position())).deflate(0.001);
         for (BlockPos pos : BlockPos.betweenClosed(box)) {
             FluidState fluid = level.getFluidState(pos);
-            if (fluid.is(FluidTags.LAVA) && pos.getY() + fluid.getHeight(level, pos) >= box.minY) {
+            if (lavaHurts
+                    && fluid.is(FluidTags.LAVA)
+                    && pos.getY() + fluid.getHeight(level, pos) >= box.minY) {
                 return Deadly.LAVA;
             }
         }
@@ -383,8 +391,9 @@ public final class SpawnTeleportService {
         for (int y = feet.getY(); y >= level.getMinY(); y--) {
             pos.setY(y);
             BlockState state = level.getBlockState(pos);
-            if (state.isAir()) continue;
-            return state.getFluidState().is(FluidTags.LAVA) ? Deadly.LAVA : Deadly.NONE;
+            boolean lava = state.getFluidState().is(FluidTags.LAVA);
+            if (state.isAir() || (lava && !lavaHurts)) continue;
+            return lava ? Deadly.LAVA : Deadly.NONE;
         }
         return Deadly.VOID;
     }
