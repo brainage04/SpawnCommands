@@ -98,6 +98,11 @@ public final class SpawnCommandsGameTest {
         SpawnCommandsGameTests.spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer(helper);
     }
 
+    @GameTest
+    public void aSpawnInWaterStillTeleports(GameTestHelper helper) {
+        SpawnCommandsGameTests.aSpawnInWaterStillTeleports(helper);
+    }
+
     @GameTest(maxTicks = 1000000)
     public void aWorldSpawnInLavaInAnUnloadedChunkFailsOnceTheChunkLoads(GameTestHelper helper) {
         SpawnCommandsGameTests.aWorldSpawnInLavaInAnUnloadedChunkFailsOnceTheChunkLoads(helper);

@@ -906,6 +906,29 @@ public final class SpawnCommandsGameTests {
         helper.succeed();
     }
 
+    /** A spawn in water is survivable, so the lava and void refusals leave it usable. */
+    public static void aSpawnInWaterStillTeleports(GameTestHelper helper) {
+        try (GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnWater")) {
+            ServerPlayer player = joined.player();
+            joined.moveTo(helper, new BlockPos(5, 1, 5));
+            BlockPos water = helper.absolutePos(new BlockPos(2, 1, 2));
+            helper.setBlock(new BlockPos(2, 1, 2), Blocks.WATER);
+            joined.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    water,
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 1,
+                                    "A world spawn in water must teleport, got "
+                                            + joined.messageTexts()));
+            helper.assertTrue(
+                    player.blockPosition().equals(water),
+                    "The player must arrive in the water, got " + player.position());
+        }
+        helper.succeed();
+    }
+
     public static void aSecondSpawnRequestWhileTheChunkLoadsWaitsForTheLoadToo(
             GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
