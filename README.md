@@ -25,7 +25,7 @@ Personal spawn points continue to use vanilla beds, respawn anchors, dimensions,
 - `/spawncommands` or `/spawncommands help` – lists these commands.
 - `/spawn`, `/myspawn` and `/spawnof` refuse a destination in lava or over the void, where no block lies below it down to the minimum build height, and leave you where you are with a message.
 
-Messages use BrainageLib's style: a grey `[SpawnCommands]` prefix with a green body for success and a red body for errors. SpawnCommands is listed in BrainageLib's `/servermods` help and first-join notice. Every command answers the player with a UI click sound, and a command only a player can use, run from the console, gets BrainageLib's shared "This command can only be used by players!" message.
+Messages use BrainageLib's style: a grey `[SpawnCommands]` prefix with a green body for success and a red body for errors. SpawnCommands is listed in BrainageLib's `/servermods` help and first-join notice. Every command except the help page (`/spawncommands` and `/spawncommands help`) answers the player with a UI click sound, and a command only a player can use, run from the console, gets BrainageLib's shared "This command can only be used by players!" message.
 
 ## Known limits
 
