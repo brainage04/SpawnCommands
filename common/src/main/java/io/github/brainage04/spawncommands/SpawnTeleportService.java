@@ -13,10 +13,12 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.TicketType;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.phys.AABB;
@@ -328,7 +330,7 @@ public final class SpawnTeleportService {
             float yaw,
             float pitch,
             String label) {
-        Deadly deadly = deadlyAt(level, destination);
+        Deadly deadly = deadlyAt(level, player, destination);
         if (deadly != Deadly.NONE) {
             SpawnCommands.FEEDBACK.error(
                     player,
@@ -364,16 +366,36 @@ public final class SpawnTeleportService {
      * (SpreadPlayersCommand.java:344-362), and must not be a liquid. Running out of blocks before
      * the minimum build height is the void. Lava is the liquid that kills, the one vanilla's lava
      * damage names (FluidTags.LAVA, Entity.java:1772-1774); water is survivable, so a spawn in it
-     * is still usable.
+     * is still usable. The player is in lava wherever any part of their box is, which the column
+     * below their feet misses for lava at head height: the game tests the box, shrunk by 0.001,
+     * against each fluid's height (Entity.java:4211-4213, EntityFluidInteraction.java:40-73).
      */
-    private static Deadly deadlyAt(ServerLevel level, Vec3 destination) {
+    private static Deadly deadlyAt(ServerLevel level, ServerPlayer player, Vec3 destination) {
+        // Lava does not hurt a creative or spectator player (Player.java:677-679), who only sinks
+        // through it; the void's damage gets past that (DamageTypeTags.BYPASSES_INVULNERABILITY).
+        boolean lavaHurts =
+                !player.getAbilities().invulnerable
+                        || level.damageSources().lava().is(DamageTypeTags.BYPASSES_INVULNERABILITY);
+        AABB box =
+                player.getBoundingBox()
+                        .move(destination.subtract(player.position()))
+                        .deflate(0.001);
+        for (BlockPos pos : BlockPos.betweenClosed(box)) {
+            FluidState fluid = level.getFluidState(pos);
+            if (lavaHurts
+                    && fluid.is(FluidTags.LAVA)
+                    && pos.getY() + fluid.getHeight(level, pos) >= box.minY) {
+                return Deadly.LAVA;
+            }
+        }
         BlockPos feet = BlockPos.containing(destination);
         BlockPos.MutableBlockPos pos = feet.mutable();
         for (int y = feet.getY(); y >= level.getMinY(); y--) {
             pos.setY(y);
             BlockState state = level.getBlockState(pos);
-            if (state.isAir()) continue;
-            return state.getFluidState().is(FluidTags.LAVA) ? Deadly.LAVA : Deadly.NONE;
+            boolean lava = state.getFluidState().is(FluidTags.LAVA);
+            if (state.isAir() || (lava && !lavaHurts)) continue;
+            return lava ? Deadly.LAVA : Deadly.NONE;
         }
         return Deadly.VOID;
     }

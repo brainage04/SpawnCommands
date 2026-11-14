@@ -857,7 +857,8 @@ public final class SpawnCommandsGameTests {
 
     public static void spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        try (GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnDangerous")) {
+        try (GameTestPlayer joined =
+                GameTestPlayer.join(helper, "SpawnDangerous").gameMode(GameType.SURVIVAL)) {
             ServerPlayer player = joined.player();
             joined.moveTo(helper, new BlockPos(5, 1, 5));
             Vec3 before = player.position();
@@ -935,6 +936,117 @@ public final class SpawnCommandsGameTests {
         helper.succeed();
     }
 
+    /**
+     * A world spawn with lava at head height, where the column below the feet holds none, fails;
+     * with the lava a block higher, above the player's 1.8 block box, it still works.
+     */
+    public static void aSpawnWithLavaAtHeadHeightFails(GameTestHelper helper) {
+        try (GameTestPlayer joined =
+                GameTestPlayer.join(helper, "SpawnLavaHead").gameMode(GameType.SURVIVAL)) {
+            ServerPlayer player = joined.player();
+            joined.moveTo(helper, new BlockPos(5, 1, 5));
+            Vec3 before = player.position();
+            BlockPos spawn = helper.absolutePos(new BlockPos(2, 1, 2));
+            helper.setBlock(new BlockPos(2, 2, 2), Blocks.LAVA);
+            joined.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    spawn,
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 0,
+                                    "A world spawn with lava at head height must fail"));
+            helper.assertTrue(
+                    player.position().equals(before),
+                    "A spawn with lava at head height must not move the player");
+            assertMessage(
+                    helper,
+                    joined,
+                    "[SpawnCommands] Could not teleport to world spawn because it is in lava.",
+                    0xFF5555);
+
+            helper.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
+            helper.setBlock(new BlockPos(2, 3, 2), Blocks.LAVA);
+            joined.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    spawn,
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 1,
+                                    "A world spawn with lava above the player's head must still"
+                                            + " work, got "
+                                            + joined.messageTexts()));
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Lava cannot hurt a creative or spectator player, so a spawn in lava still takes them there,
+     * while a spawn over the void, whose damage gets past their protection, is still refused.
+     */
+    public static void lavaDoesNotStopACreativeOrSpectatorPlayer(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        try (GameTestPlayer creative =
+                        GameTestPlayer.join(helper, "SpawnCreative").gameMode(GameType.CREATIVE);
+                GameTestPlayer spectator =
+                        GameTestPlayer.join(helper, "SpawnSpectator")
+                                .gameMode(GameType.SPECTATOR)) {
+            BlockPos lava = helper.absolutePos(new BlockPos(4, 1, 2));
+            helper.setBlock(new BlockPos(4, 1, 2), Blocks.LAVA);
+            for (GameTestPlayer joined : List.of(creative, spectator)) {
+                ServerPlayer player = joined.player();
+                joined.moveTo(helper, new BlockPos(1, 1, 1));
+                joined.clearMessages();
+                withWorldSpawn(
+                        helper,
+                        lava,
+                        () ->
+                                helper.assertTrue(
+                                        execute(player, "spawn") == 1,
+                                        "A world spawn in lava must still take "
+                                                + player.getScoreboardName()
+                                                + " there, got "
+                                                + joined.messageTexts()));
+                helper.assertTrue(
+                        player.blockPosition().equals(lava),
+                        "The player must arrive in the lava, got " + player.position());
+            }
+
+            ServerPlayer player = creative.player();
+            creative.moveTo(helper, new BlockPos(1, 1, 1));
+            Vec3 before = player.position();
+            BlockPos overVoid = helper.absolutePos(new BlockPos(2, 1, 2)).offset(3_000, 0, 3_000);
+            level.getChunk(
+                    SectionPos.blockToSectionCoord(overVoid.getX()),
+                    SectionPos.blockToSectionCoord(overVoid.getZ()));
+            for (int y = level.getMinY(); y <= overVoid.getY(); y++) {
+                level.setBlockAndUpdate(
+                        new BlockPos(overVoid.getX(), y, overVoid.getZ()),
+                        Blocks.AIR.defaultBlockState());
+            }
+            creative.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    overVoid,
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 0,
+                                    "A world spawn over the void must still be refused for a"
+                                            + " creative player"));
+            helper.assertTrue(
+                    player.position().equals(before),
+                    "A spawn over the void must not move a creative player");
+            assertMessage(
+                    helper,
+                    creative,
+                    "[SpawnCommands] Could not teleport to world spawn because it is over the"
+                            + " void.",
+                    0xFF5555);
+        }
+        helper.succeed();
+    }
+
     public static void aSecondSpawnRequestWhileTheChunkLoadsWaitsForTheLoadToo(
             GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
@@ -1004,7 +1116,8 @@ public final class SpawnCommandsGameTests {
             GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         // Closed inside the final step, which runs after this method has returned.
-        GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnLavaFar");
+        GameTestPlayer joined =
+                GameTestPlayer.join(helper, "SpawnLavaFar").gameMode(GameType.SURVIVAL);
         ServerPlayer player = joined.player();
         joined.moveTo(helper, new BlockPos(5, 1, 5));
         BlockPos here = helper.absolutePos(new BlockPos(5, 1, 5));
