@@ -930,6 +930,68 @@ public final class SpawnCommandsGameTests {
                 .thenSucceed();
     }
 
+    public static void aWorldSpawnInLavaInAnUnloadedChunkFailsOnceTheChunkLoads(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        // Closed inside the final step, which runs after this method has returned.
+        GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnLavaFar");
+        ServerPlayer player = joined.player();
+        joined.moveTo(helper, new BlockPos(5, 1, 5));
+        BlockPos here = helper.absolutePos(new BlockPos(5, 1, 5));
+        BlockPos lava =
+                new BlockPos(
+                        here.getX() + 100_000,
+                        level.getHeight(Heightmap.Types.MOTION_BLOCKING, here.getX(), here.getZ()),
+                        here.getZ() + 96_000);
+        int chunkX = SectionPos.blockToSectionCoord(lava.getX());
+        int chunkZ = SectionPos.blockToSectionCoord(lava.getZ());
+        helper.assertTrue(
+                !level.hasChunk(chunkX, chunkZ),
+                "The spawn's chunk must not be loaded before /spawn");
+        // Placing the lava loads the chunk, so the steps below wait for it to unload before
+        // /spawn.
+        level.setBlock(lava, Blocks.LAVA.defaultBlockState(), Block.UPDATE_CLIENTS);
+        Vec3 before = player.position();
+        long started = System.nanoTime();
+        helper.startSequence()
+                .thenWaitUntil(
+                        () -> {
+                            assertStillLoading(helper, started);
+                            helper.assertTrue(
+                                    level.getChunkSource().getChunkNow(chunkX, chunkZ) == null,
+                                    "The spawn's chunk must unload before /spawn");
+                        })
+                .thenExecute(
+                        () -> {
+                            joined.clearMessages();
+                            withWorldSpawn(
+                                    helper,
+                                    lava,
+                                    () ->
+                                            helper.assertTrue(
+                                                    execute(player, "spawn") == 1,
+                                                    "A world spawn in a chunk nobody loaded must"
+                                                            + " be accepted while its chunk"
+                                                            + " loads"));
+                        })
+                .thenWaitUntil(
+                        () -> {
+                            assertStillLoading(helper, started);
+                            helper.assertTrue(
+                                    joined.received(
+                                            "[SpawnCommands] Could not teleport to world spawn"
+                                                    + " because it is in lava."),
+                                    "A world spawn in lava in a chunk nobody loaded must fail"
+                                            + " once the chunk is loaded, got "
+                                            + joined.messageTexts());
+                            helper.assertTrue(
+                                    player.position().equals(before),
+                                    "A world spawn in lava must not move the player");
+                        })
+                .thenExecute(joined::close)
+                .thenSucceed();
+    }
+
     private static List<String> suggestions(ServerPlayer player, String input) {
         var dispatcher = player.level().getServer().getCommands().getDispatcher();
         var parse = dispatcher.parse(input, player.createCommandSourceStack());

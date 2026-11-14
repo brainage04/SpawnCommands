@@ -71,6 +71,10 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 SpawnCommandsGameTests::spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer);
         register(
                 event,
+                "a_world_spawn_in_lava_in_an_unloaded_chunk_fails_once_the_chunk_loads",
+                SpawnCommandsGameTests::aWorldSpawnInLavaInAnUnloadedChunkFailsOnceTheChunkLoads);
+        register(
+                event,
                 "world_spawn_in_an_unloaded_chunk_teleports_after_loading_it",
                 SpawnCommandsGameTests::worldSpawnInAnUnloadedChunkTeleportsAfterLoadingIt);
         register(
