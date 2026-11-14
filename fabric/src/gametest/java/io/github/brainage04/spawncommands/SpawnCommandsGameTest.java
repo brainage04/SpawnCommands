@@ -1,5 +1,6 @@
 package io.github.brainage04.spawncommands;
 
+import io.github.brainage04.spawncommands.gametest.SpawnAccessDataGameTests;
 import io.github.brainage04.spawncommands.gametest.SpawnCommandsGameTests;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -101,6 +102,11 @@ public final class SpawnCommandsGameTest {
     @GameTest
     public void aSpawnInWaterStillTeleports(GameTestHelper helper) {
         SpawnCommandsGameTests.aSpawnInWaterStillTeleports(helper);
+    }
+
+    @GameTest
+    public void aSpawnAccessFileKeepsItsDataThroughALoadAndASave(GameTestHelper helper) {
+        SpawnAccessDataGameTests.aSpawnAccessFileKeepsItsDataThroughALoadAndASave(helper);
     }
 
     @GameTest
