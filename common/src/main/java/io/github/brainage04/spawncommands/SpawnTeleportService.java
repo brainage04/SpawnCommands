@@ -34,6 +34,9 @@ public final class SpawnTeleportService {
      */
     private static final Map<ServerLevel, Map<ChunkPos, Integer>> TICKETS = new WeakHashMap<>();
 
+    /** How many times a teleport loads its chunks before it gives up on them staying loaded. */
+    private static final int LOAD_ATTEMPTS = 3;
+
     private SpawnTeleportService() {}
 
     public static int teleportToWorldSpawn(ServerPlayer player) {
@@ -44,7 +47,8 @@ public final class SpawnTeleportService {
             SpawnCommands.FEEDBACK.error(player, "The world spawn dimension is unavailable.");
             return 0;
         }
-        List<ChunkPos> unloaded = chunksToLoad(level, player, Vec3.atBottomCenterOf(spawn.pos()));
+        Vec3 destination = Vec3.atBottomCenterOf(spawn.pos());
+        List<ChunkPos> unloaded = chunksToLoad(level, player, destination);
         if (unloaded.isEmpty()) {
             return arriveAtWorldSpawn(player, level, spawn);
         }
@@ -54,22 +58,79 @@ public final class SpawnTeleportService {
         // (PlayerSpawnFinder.java:114-121); the answer reaches the player from the callback a few
         // ticks later.
         SpawnCommands.FEEDBACK.neutral(player, "Loading world spawn...");
-        load(level, unloaded)
+        loadThenArrive(
+                level,
+                player,
+                destination,
+                "world spawn",
+                unloaded,
+                1,
+                () -> arriveAtWorldSpawn(player, level, spawn));
+        return 1;
+    }
+
+    /**
+     * Loads {@code chunks}, then runs {@code arrive} on the server thread once every chunk under the
+     * standing box at {@code destination} is full, unless the player has left by then. Package
+     * private for the GameTests.
+     */
+    static void loadThenArrive(
+            ServerLevel level,
+            ServerPlayer player,
+            Vec3 destination,
+            String label,
+            List<ChunkPos> chunks,
+            int attempt,
+            Runnable arrive) {
+        load(level, chunks)
                 .whenCompleteAsync(
                         (ignored, failure) -> {
                             try {
                                 if (failure != null) {
                                     SpawnCommands.FEEDBACK.error(
-                                            player, "Could not teleport to world spawn.");
+                                            player, "Could not teleport to %s.", label);
                                 } else if (!player.hasDisconnected()) {
-                                    arriveAtWorldSpawn(player, level, spawn);
+                                    // The count above is this mod's own: another mod that adds and
+                                    // removes a PLAYER_LOADING ticket on the same chunk shares the
+                                    // one ticket (TicketStorage.java:147-156) and can take it away
+                                    // before this load is done, which completes the load with an
+                                    // unloaded chunk (GenerationChunkHolder.java:83-91, 164-167).
+                                    List<ChunkPos> missing =
+                                            chunksToLoad(level, player, destination);
+                                    if (missing.isEmpty()) {
+                                        arrive.run();
+                                    } else if (attempt < LOAD_ATTEMPTS) {
+                                        loadThenArrive(
+                                                level,
+                                                player,
+                                                destination,
+                                                label,
+                                                missing,
+                                                attempt + 1,
+                                                arrive);
+                                    } else {
+                                        SpawnCommands.FEEDBACK.error(
+                                                player,
+                                                "Could not teleport to %s because its chunk would"
+                                                        + " not stay loaded.",
+                                                label);
+                                    }
                                 }
+                            } catch (Throwable thrown) {
+                                SpawnCommands.LOGGER.error(
+                                        "Could not teleport {} to {} at {} in {}",
+                                        player.getScoreboardName(),
+                                        label,
+                                        destination,
+                                        level.dimension().identifier(),
+                                        thrown);
+                                SpawnCommands.FEEDBACK.error(
+                                        player, "Could not teleport to %s.", label);
                             } finally {
-                                release(level, unloaded);
+                                release(level, chunks);
                             }
                         },
-                        server);
-        return 1;
+                        level.getServer());
     }
 
     private static int arriveAtWorldSpawn(
@@ -131,10 +192,9 @@ public final class SpawnTeleportService {
      * position uses and never expires (TicketType.java:20), so the load cannot be abandoned half
      * way; SPAWN_SEARCH expires after one tick (TicketType.java:18) and a chunk that is ready for
      * saving then loses it (TicketStorage.java:291-300) long before a cold chunk has generated,
-     * which leaves the future pending forever. {@link #release} gives the ticket back. Public for
-     * the GameTests only, which live in another package.
+     * which leaves the future pending forever. {@link #release} gives the ticket back.
      */
-    public static CompletableFuture<?> load(ServerLevel level, List<ChunkPos> chunks) {
+    static CompletableFuture<?> load(ServerLevel level, List<ChunkPos> chunks) {
         Map<ChunkPos, Integer> held = TICKETS.computeIfAbsent(level, ignored -> new HashMap<>());
         CompletableFuture<?>[] loads = new CompletableFuture<?>[chunks.size()];
         for (int i = 0; i < loads.length; i++) {
@@ -149,12 +209,22 @@ public final class SpawnTeleportService {
 
     /**
      * Gives back the tickets {@link #load} took, so they do not keep the chunks loaded, once no
-     * other pending teleport still needs them.
+     * other pending teleport still needs them. A chunk this class holds no count for is left
+     * alone.
      */
-    public static void release(ServerLevel level, List<ChunkPos> chunks) {
+    static void release(ServerLevel level, List<ChunkPos> chunks) {
         Map<ChunkPos, Integer> held = TICKETS.get(level);
+        if (held == null) {
+            return;
+        }
         for (ChunkPos pos : chunks) {
-            if (held.merge(pos, -1, Integer::sum) == 0) {
+            Integer count = held.get(pos);
+            if (count == null) {
+                continue;
+            }
+            if (count > 1) {
+                held.put(pos, count - 1);
+            } else {
                 held.remove(pos);
                 level.getChunkSource().removeTicketWithRadius(TicketType.PLAYER_LOADING, pos, 0);
             }

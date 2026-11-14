@@ -1,6 +1,7 @@
 package io.github.brainage04.spawncommands.neoforge;
 
 import io.github.brainage04.spawncommands.SpawnCommands;
+import io.github.brainage04.spawncommands.SpawnTicketGameTests;
 import io.github.brainage04.spawncommands.gametest.SpawnCommandsGameTests;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -91,7 +92,23 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
         register(
                 event,
                 "a_finished_load_leaves_the_ticket_another_load_still_needs",
-                SpawnCommandsGameTests::aFinishedLoadLeavesTheTicketAnotherLoadStillNeeds);
+                SpawnTicketGameTests::aFinishedLoadLeavesTheTicketAnotherLoadStillNeeds);
+        register(
+                event,
+                "a_release_without_a_load_leaves_later_tickets_alone",
+                SpawnTicketGameTests::aReleaseWithoutALoadLeavesLaterTicketsAlone);
+        register(
+                event,
+                "a_ticket_another_mod_took_away_is_taken_again_before_arriving",
+                SpawnTicketGameTests::aTicketAnotherModTookAwayIsTakenAgainBeforeArriving);
+        register(
+                event,
+                "a_failed_arrival_is_reported_and_gives_the_ticket_back",
+                SpawnTicketGameTests::aFailedArrivalIsReportedAndGivesTheTicketBack);
+        register(
+                event,
+                "a_player_who_leaves_during_the_load_gives_the_ticket_back",
+                SpawnTicketGameTests::aPlayerWhoLeavesDuringTheLoadGivesTheTicketBack);
         register(
                 event,
                 "owners_revoke_guests_who_are_offline",

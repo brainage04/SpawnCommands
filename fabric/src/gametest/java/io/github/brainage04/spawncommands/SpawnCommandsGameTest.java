@@ -105,7 +105,27 @@ public final class SpawnCommandsGameTest {
 
     @GameTest(maxTicks = 1000000)
     public void aFinishedLoadLeavesTheTicketAnotherLoadStillNeeds(GameTestHelper helper) {
-        SpawnCommandsGameTests.aFinishedLoadLeavesTheTicketAnotherLoadStillNeeds(helper);
+        SpawnTicketGameTests.aFinishedLoadLeavesTheTicketAnotherLoadStillNeeds(helper);
+    }
+
+    @GameTest
+    public void aReleaseWithoutALoadLeavesLaterTicketsAlone(GameTestHelper helper) {
+        SpawnTicketGameTests.aReleaseWithoutALoadLeavesLaterTicketsAlone(helper);
+    }
+
+    @GameTest(maxTicks = 1000000)
+    public void aTicketAnotherModTookAwayIsTakenAgainBeforeArriving(GameTestHelper helper) {
+        SpawnTicketGameTests.aTicketAnotherModTookAwayIsTakenAgainBeforeArriving(helper);
+    }
+
+    @GameTest(maxTicks = 1000000)
+    public void aFailedArrivalIsReportedAndGivesTheTicketBack(GameTestHelper helper) {
+        SpawnTicketGameTests.aFailedArrivalIsReportedAndGivesTheTicketBack(helper);
+    }
+
+    @GameTest(maxTicks = 1000000)
+    public void aPlayerWhoLeavesDuringTheLoadGivesTheTicketBack(GameTestHelper helper) {
+        SpawnTicketGameTests.aPlayerWhoLeavesDuringTheLoadGivesTheTicketBack(helper);
     }
 
     @GameTest
