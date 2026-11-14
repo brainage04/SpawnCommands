@@ -636,7 +636,13 @@ public final class SpawnCommandsGameTests {
 
     public static void playerOnlyCommandsAnswerNonPlayersThroughModFeedback(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
-        for (String command : List.of("spawn", "myspawn", "spawnshare @a")) {
+        for (String command :
+                List.of(
+                        "spawn",
+                        "myspawn",
+                        "spawnshare @a",
+                        "spawnof Someone",
+                        "spawnshare revoke Someone")) {
             var output = new CapturedCommandOutput();
             server.getCommands().performPrefixedCommand(output.source(server), command);
             helper.assertTrue(
