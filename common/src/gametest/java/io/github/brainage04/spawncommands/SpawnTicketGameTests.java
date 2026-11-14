@@ -264,12 +264,7 @@ public final class SpawnTicketGameTests {
         ChunkPos far = farChunk(helper, 144_000);
         boolean[] arrived = new boolean[1];
         SpawnTeleportService.loadThenArrive(
-                level,
-                joined.player(),
-                middleOf(far),
-                "the test spot",
-                1,
-                () -> arrived[0] = true);
+                level, joined.player(), middleOf(far), "the test spot", 1, () -> arrived[0] = true);
         helper.assertTrue(holdsLoadingTicket(level, far), "The load must take a ticket");
         joined.close();
         long started = System.nanoTime();
