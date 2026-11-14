@@ -17,12 +17,13 @@ Personal spawn points continue to use vanilla beds, respawn anchors, dimensions,
 
 ## Commands
 
-- `/spawn` – teleports you to the world's configured spawn dimension, position and rotation. You land on top of the floor in the spawn block: farmland, a slab, a floor built over the spawn, or the top of a fence or wall just below it. If there is no room for you there, even to crawl, the command fails and you stay where you are.
+- `/spawn` – teleports you to the world's configured spawn dimension, position and rotation. You land on top of the floor in the spawn block: farmland, a slab, a floor built over the spawn, or the top of a fence or wall just below it. If there is no room for you there, even to crawl, the command fails and you stay where you are. A spawn in a chunk that nobody has loaded still works: its chunk is loaded in the background first, which vanilla's own spawn search does too, and the check and the teleport follow once it is there. You are told that the spawn is loading, and you arrive a moment later.
 - `/myspawn` – teleports you to your vanilla personal respawn point.
 - `/spawnof <player>` – teleports you to an online player's personal spawn if they shared access with you.
 - `/spawnshare <players>` – grants the selected online players access to your personal spawn.
 - `/spawnshare revoke <players>` – revokes that access, also from players who are offline. It suggests the players who have access.
 - `/spawncommands` or `/spawncommands help` – lists these commands.
+- `/spawn`, `/myspawn` and `/spawnof` refuse a destination in lava or over the void, where no block lies below it down to the minimum build height, and leave you where you are with a message.
 
 Messages use BrainageLib's style: a grey `[SpawnCommands]` prefix with a green body for success and a red body for errors. SpawnCommands is listed in BrainageLib's `/servermods` help and first-join notice. Every command answers the player with a UI click sound, and a command only a player can use, run from the console, gets BrainageLib's shared "This command can only be used by players!" message.
 

@@ -13,18 +13,22 @@ import io.netty.util.ReferenceCountUtil;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.SectionPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -32,6 +36,7 @@ import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Block;
@@ -40,6 +45,7 @@ import net.minecraft.world.level.block.RespawnAnchorBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.gamerules.GameRules;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.phys.Vec3;
 
@@ -177,6 +183,11 @@ public final class SpawnCommandsGameTests {
         LevelData.RespawnData previous = overworld.getLevelData().getRespawnData();
         BlockPos origin = helper.absolutePos(new BlockPos(2, 2, 2));
         BlockPos destination = new BlockPos(origin.getX(), 80, origin.getZ());
+        // The spawn's chunk is loaded here, so the teleport is immediate; a spawn whose chunk
+        // nobody has loaded is covered by the unloaded-chunk tests.
+        nether.getChunk(
+                SectionPos.blockToSectionCoord(destination.getX()),
+                SectionPos.blockToSectionCoord(destination.getZ()));
         try (GameTestPlayer mock = GameTestPlayer.mock(helper)) {
             ServerPlayer player = mock.player();
             nether.setRespawnData(
@@ -699,6 +710,372 @@ public final class SpawnCommandsGameTests {
             ReferenceCountUtil.release(outbound);
         }
         return new Sent(messages, sounds);
+    }
+
+    public static void vanillaTpLeavesTheDestinationChunkUnloaded(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        try (GameTestPlayer vanilla = GameTestPlayer.join(helper, "SpawnVanilla")) {
+            ServerPlayer moved = vanilla.player();
+            vanilla.moveTo(helper, new BlockPos(3, 1, 3));
+            BlockPos other = helper.absolutePos(new BlockPos(3, 1, 3)).offset(100_000, 0, 20_000);
+            int otherChunkX = SectionPos.blockToSectionCoord(other.getX());
+            int otherChunkZ = SectionPos.blockToSectionCoord(other.getZ());
+            helper.assertTrue(
+                    !level.hasChunk(otherChunkX, otherChunkZ),
+                    "The /tp destination's chunk must not be loaded before /tp");
+            Vec3 teleported = Vec3.atBottomCenterOf(other);
+            // Vec3Argument does not take the exponent notation Double.toString uses past 10^7.
+            execute(
+                    withServerPermissions(moved),
+                    String.format(
+                            Locale.ROOT,
+                            "tp %s %.1f %.1f %.1f",
+                            moved.getScoreboardName(),
+                            teleported.x(),
+                            teleported.y(),
+                            teleported.z()));
+            helper.assertTrue(
+                    moved.position().equals(teleported),
+                    "Vanilla /tp must move the player to the unloaded chunk: expected "
+                            + teleported
+                            + ", landed on "
+                            + moved.position());
+            helper.assertTrue(
+                    !level.hasChunk(otherChunkX, otherChunkZ),
+                    "Vanilla /tp must not load the destination chunk either: it moves the player"
+                            + " and lets the player's own chunk ticket load the chunk");
+        }
+        helper.succeed();
+    }
+
+    // The GameTest server runs its ticks as fast as it can, measured between 20 and 7000 ticks a
+    // second on the machines that ran these tests on 14 Nov 2026, so a tick budget cannot bound a
+    // wait for a chunk load: the load needs wall time, and the test itself checks that instead.
+    // Two minutes, because one far chunk took longer than 30 s to load while the two other tests
+    // waiting on far chunks in the same batch finished.
+    private static final long LOAD_TIMEOUT_NANOS = 120_000_000_000L;
+
+    private static void assertStillLoading(GameTestHelper helper, long started) {
+        if (System.nanoTime() - started > LOAD_TIMEOUT_NANOS) {
+            helper.fail("The chunk did not load or unload within 2 min of wall time");
+        }
+    }
+
+    public static void worldSpawnInAnUnloadedChunkTeleportsAfterLoadingIt(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        // Closed inside the final assertion, which runs after this method has returned.
+        GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnFaraway");
+        ServerPlayer player = joined.player();
+        joined.moveTo(helper, new BlockPos(5, 1, 5));
+        BlockPos here = helper.absolutePos(new BlockPos(5, 1, 5));
+        // The GameTest world is flat (WorldPresets.FLAT_ALL_DIMENSIONS, GameTestServer.java:122),
+        // so the surface of a chunk far away is at the surface height here.
+        BlockPos far =
+                new BlockPos(
+                        here.getX() + 100_000,
+                        level.getHeight(Heightmap.Types.MOTION_BLOCKING, here.getX(), here.getZ()),
+                        here.getZ());
+        int farChunkX = SectionPos.blockToSectionCoord(far.getX());
+        int farChunkZ = SectionPos.blockToSectionCoord(far.getZ());
+        helper.assertTrue(
+                !level.hasChunk(farChunkX, farChunkZ),
+                "The spawn's chunk must not be loaded before /spawn");
+        Vec3 expected = Vec3.atBottomCenterOf(far);
+        withWorldSpawn(
+                helper,
+                far,
+                () ->
+                        helper.assertTrue(
+                                execute(player, "spawn") == 1,
+                                "A world spawn in a chunk nobody loaded must be accepted: its"
+                                        + " chunk is loaded first, as vanilla's spawn search"
+                                        + " does"));
+        // The chunk ticket is given back once the teleport attempt is done, and a joined test
+        // player never adds the ticket of its own position (its connection does not tick), so the
+        // chunk being loaded again is not what this waits for: the arrival is.
+        long started = System.nanoTime();
+        helper.succeedWhen(
+                () -> {
+                    assertStillLoading(helper, started);
+                    helper.assertTrue(
+                            player.position().equals(expected),
+                            "The player must arrive at the world spawn: expected "
+                                    + expected
+                                    + ", landed on "
+                                    + player.position());
+                    joined.close();
+                });
+    }
+
+    public static void aWorldSpawnInsideTheGroundOfAnUnloadedChunkStillFails(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        // Closed inside the final assertion, which runs after this method has returned.
+        GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnBuriedFaraway");
+        ServerPlayer player = joined.player();
+        joined.moveTo(helper, new BlockPos(5, 1, 5));
+        BlockPos buried =
+                helper.absolutePos(new BlockPos(5, 1, 5))
+                        .offset(100_000, 0, 0)
+                        .atY(level.getMinY());
+        int chunkX = SectionPos.blockToSectionCoord(buried.getX());
+        int chunkZ = SectionPos.blockToSectionCoord(buried.getZ());
+        helper.assertTrue(
+                !level.hasChunk(chunkX, chunkZ),
+                "The buried spawn's chunk must not be loaded before /spawn");
+        Vec3 before = player.position();
+        joined.clearMessages();
+        withWorldSpawn(
+                helper,
+                buried,
+                () ->
+                        helper.assertTrue(
+                                execute(player, "spawn") == 1,
+                                "A world spawn in a chunk nobody loaded is accepted while its"
+                                        + " chunk loads"));
+        long started = System.nanoTime();
+        helper.succeedWhen(
+                () -> {
+                    assertStillLoading(helper, started);
+                    helper.assertTrue(
+                            joined.received(
+                                    "[SpawnCommands] Could not teleport to world spawn because it"
+                                            + " is obstructed."),
+                            "A world spawn inside the ground of a chunk nobody loaded must fail"
+                                    + " once the chunk is loaded, got "
+                                    + joined.messageTexts());
+                    helper.assertTrue(
+                            player.position().equals(before),
+                            "A world spawn in an unloaded chunk must not move the player");
+                    joined.close();
+                });
+    }
+
+    public static void spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        try (GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnDangerous")) {
+            ServerPlayer player = joined.player();
+            joined.moveTo(helper, new BlockPos(5, 1, 5));
+            Vec3 before = player.position();
+
+            BlockPos lava = new BlockPos(2, 1, 2);
+            helper.setBlock(lava, Blocks.LAVA);
+            joined.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    helper.absolutePos(lava),
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 0,
+                                    "A world spawn in lava must fail"));
+            helper.assertTrue(
+                    player.position().equals(before), "A spawn in lava must not move the player");
+            assertMessage(
+                    helper,
+                    joined,
+                    "[SpawnCommands] Could not teleport to world spawn because it is in lava.",
+                    0xFF5555);
+
+            BlockPos overVoid = helper.absolutePos(new BlockPos(5, 1, 5)).offset(2_000, 0, 2_000);
+            level.getChunk(
+                    SectionPos.blockToSectionCoord(overVoid.getX()),
+                    SectionPos.blockToSectionCoord(overVoid.getZ()));
+            for (int y = level.getMinY(); y <= overVoid.getY(); y++) {
+                level.setBlockAndUpdate(
+                        new BlockPos(overVoid.getX(), y, overVoid.getZ()),
+                        Blocks.AIR.defaultBlockState());
+            }
+            // A forced respawn point is where an operator's /spawnpoint puts it
+            // (SetSpawnCommand.java:21, ServerPlayer.java:1121-1130).
+            player.setRespawnPosition(
+                    new ServerPlayer.RespawnConfig(
+                            LevelData.RespawnData.of(level.dimension(), overVoid, 0.0F, 0.0F),
+                            true),
+                    false);
+            joined.clearMessages();
+            helper.assertTrue(
+                    execute(player, "myspawn") == 0, "A personal spawn over the void must fail");
+            helper.assertTrue(
+                    player.position().equals(before),
+                    "A personal spawn over the void must not move the player");
+            assertMessage(
+                    helper,
+                    joined,
+                    "[SpawnCommands] Could not teleport to your personal spawn because it is over"
+                            + " the void.",
+                    0xFF5555);
+        }
+        helper.succeed();
+    }
+
+    public static void aSecondSpawnRequestWhileTheChunkLoadsWaitsForTheLoadToo(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        // Closed inside the final assertion, which runs after this method has returned.
+        GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnTwice");
+        ServerPlayer player = joined.player();
+        joined.moveTo(helper, new BlockPos(5, 1, 5));
+        BlockPos here = helper.absolutePos(new BlockPos(5, 1, 5));
+        BlockPos far =
+                new BlockPos(
+                        here.getX() + 100_000,
+                        level.getHeight(Heightmap.Types.MOTION_BLOCKING, here.getX(), here.getZ()),
+                        here.getZ() + 48_000);
+        int chunkX = SectionPos.blockToSectionCoord(far.getX());
+        int chunkZ = SectionPos.blockToSectionCoord(far.getZ());
+        helper.assertTrue(
+                !level.hasChunk(chunkX, chunkZ),
+                "The spawn's chunk must not be loaded before /spawn");
+        Vec3 expected = Vec3.atBottomCenterOf(far);
+        Vec3 before = player.position();
+        joined.clearMessages();
+        withWorldSpawn(
+                helper,
+                far,
+                () -> {
+                    helper.assertTrue(
+                            execute(player, "spawn") == 1,
+                            "A world spawn in a chunk nobody loaded must be accepted while its"
+                                    + " chunk loads");
+                    helper.assertTrue(
+                            execute(player, "spawn") == 1,
+                            "A repeated /spawn while the chunk loads must be accepted too");
+                });
+        helper.assertTrue(
+                level.getChunkSource().getChunkNow(chunkX, chunkZ) == null,
+                "A repeated /spawn while the chunk loads must wait for the load as well, not load"
+                        + " the chunk on the server thread");
+        helper.assertTrue(
+                player.position().equals(before),
+                "Neither /spawn may move the player before the chunk has loaded");
+        helper.assertTrue(
+                joined.messageTexts()
+                        .equals(
+                                List.of(
+                                        "[SpawnCommands] Loading world spawn...",
+                                        "[SpawnCommands] Loading world spawn...")),
+                "Each /spawn must say once that the world spawn is loading, got "
+                        + joined.messageTexts());
+        long started = System.nanoTime();
+        helper.succeedWhen(
+                () -> {
+                    assertStillLoading(helper, started);
+                    helper.assertTrue(
+                            player.position().equals(expected),
+                            "The player must arrive at the world spawn: expected "
+                                    + expected
+                                    + ", landed on "
+                                    + player.position());
+                    helper.assertTrue(
+                            joined.received("[SpawnCommands] Teleported to world spawn."),
+                            "The arrival must be reported, got " + joined.messageTexts());
+                    joined.close();
+                });
+    }
+
+    public static void aFinishedLoadLeavesTheTicketAnotherLoadStillNeeds(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos here = helper.absolutePos(new BlockPos(5, 1, 5));
+        ChunkPos far =
+                new ChunkPos(
+                        SectionPos.blockToSectionCoord(here.getX() + 100_000),
+                        SectionPos.blockToSectionCoord(here.getZ() + 72_000));
+        helper.assertTrue(
+                level.getChunkSource().getChunkNow(far.x(), far.z()) == null,
+                "The chunk must not be loaded before the test");
+        // Two teleports wait on the same chunk, and the second one ends first, as one does whose
+        // player left or whose other chunks were already there.
+        CompletableFuture<?> first = SpawnTeleportService.load(level, List.of(far));
+        SpawnTeleportService.load(level, List.of(far));
+        SpawnTeleportService.release(level, List.of(far));
+        long started = System.nanoTime();
+        helper.startSequence()
+                .thenWaitUntil(
+                        () -> {
+                            assertStillLoading(helper, started);
+                            helper.assertTrue(
+                                    first.isDone(), "The first teleport's load must finish");
+                        })
+                // Room for the distance manager to drop the chunk if its ticket had gone.
+                .thenIdle(5)
+                .thenExecute(
+                        () -> {
+                            helper.assertTrue(
+                                    level.getChunkSource().getChunkNow(far.x(), far.z()) != null,
+                                    "The chunk must stay loaded while the first teleport still"
+                                            + " needs it");
+                            SpawnTeleportService.release(level, List.of(far));
+                        })
+                .thenWaitUntil(
+                        () -> {
+                            assertStillLoading(helper, started);
+                            helper.assertTrue(
+                                    level.getChunkSource().getChunkNow(far.x(), far.z()) == null,
+                                    "The last teleport to end must give the ticket back");
+                        })
+                .thenSucceed();
+    }
+
+    public static void aWorldSpawnInLavaInAnUnloadedChunkFailsOnceTheChunkLoads(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        // Closed inside the final step, which runs after this method has returned.
+        GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnLavaFar");
+        ServerPlayer player = joined.player();
+        joined.moveTo(helper, new BlockPos(5, 1, 5));
+        BlockPos here = helper.absolutePos(new BlockPos(5, 1, 5));
+        BlockPos lava =
+                new BlockPos(
+                        here.getX() + 100_000,
+                        level.getHeight(Heightmap.Types.MOTION_BLOCKING, here.getX(), here.getZ()),
+                        here.getZ() + 96_000);
+        int chunkX = SectionPos.blockToSectionCoord(lava.getX());
+        int chunkZ = SectionPos.blockToSectionCoord(lava.getZ());
+        helper.assertTrue(
+                !level.hasChunk(chunkX, chunkZ),
+                "The spawn's chunk must not be loaded before /spawn");
+        // Placing the lava loads the chunk, so the steps below wait for it to unload before
+        // /spawn.
+        level.setBlock(lava, Blocks.LAVA.defaultBlockState(), Block.UPDATE_CLIENTS);
+        Vec3 before = player.position();
+        long started = System.nanoTime();
+        helper.startSequence()
+                .thenWaitUntil(
+                        () -> {
+                            assertStillLoading(helper, started);
+                            helper.assertTrue(
+                                    level.getChunkSource().getChunkNow(chunkX, chunkZ) == null,
+                                    "The spawn's chunk must unload before /spawn");
+                        })
+                .thenExecute(
+                        () -> {
+                            joined.clearMessages();
+                            withWorldSpawn(
+                                    helper,
+                                    lava,
+                                    () ->
+                                            helper.assertTrue(
+                                                    execute(player, "spawn") == 1,
+                                                    "A world spawn in a chunk nobody loaded must"
+                                                            + " be accepted while its chunk"
+                                                            + " loads"));
+                        })
+                .thenWaitUntil(
+                        () -> {
+                            assertStillLoading(helper, started);
+                            helper.assertTrue(
+                                    joined.received(
+                                            "[SpawnCommands] Could not teleport to world spawn"
+                                                    + " because it is in lava."),
+                                    "A world spawn in lava in a chunk nobody loaded must fail"
+                                            + " once the chunk is loaded, got "
+                                            + joined.messageTexts());
+                            helper.assertTrue(
+                                    player.position().equals(before),
+                                    "A world spawn in lava must not move the player");
+                        })
+                .thenExecute(joined::close)
+                .thenSucceed();
     }
 
     private static List<String> suggestions(ServerPlayer player, String input) {

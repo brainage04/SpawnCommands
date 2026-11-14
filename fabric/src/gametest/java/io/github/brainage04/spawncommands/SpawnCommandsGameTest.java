@@ -84,4 +84,42 @@ public final class SpawnCommandsGameTest {
     public void commandsClickForThePlayerThroughModFeedback(GameTestHelper helper) {
         SpawnCommandsGameTests.commandsClickForThePlayerThroughModFeedback(helper);
     }
+
+    // The GameTest server ticks as fast as it can, so a tick budget cannot bound a wait for a chunk
+    // load (20000 ticks took 3 s on one host and 90 s on another, 14 Nov 2026). These tests check
+    // 2 min of wall time themselves, and the budget is only a backstop above that.
+    @GameTest(maxTicks = 1000000)
+    public void worldSpawnInAnUnloadedChunkTeleportsAfterLoadingIt(GameTestHelper helper) {
+        SpawnCommandsGameTests.worldSpawnInAnUnloadedChunkTeleportsAfterLoadingIt(helper);
+    }
+
+    @GameTest
+    public void spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer(GameTestHelper helper) {
+        SpawnCommandsGameTests.spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer(helper);
+    }
+
+    @GameTest(maxTicks = 1000000)
+    public void aWorldSpawnInLavaInAnUnloadedChunkFailsOnceTheChunkLoads(GameTestHelper helper) {
+        SpawnCommandsGameTests.aWorldSpawnInLavaInAnUnloadedChunkFailsOnceTheChunkLoads(helper);
+    }
+
+    @GameTest(maxTicks = 1000000)
+    public void aWorldSpawnInsideTheGroundOfAnUnloadedChunkStillFails(GameTestHelper helper) {
+        SpawnCommandsGameTests.aWorldSpawnInsideTheGroundOfAnUnloadedChunkStillFails(helper);
+    }
+
+    @GameTest(maxTicks = 1000000)
+    public void aSecondSpawnRequestWhileTheChunkLoadsWaitsForTheLoadToo(GameTestHelper helper) {
+        SpawnCommandsGameTests.aSecondSpawnRequestWhileTheChunkLoadsWaitsForTheLoadToo(helper);
+    }
+
+    @GameTest(maxTicks = 1000000)
+    public void aFinishedLoadLeavesTheTicketAnotherLoadStillNeeds(GameTestHelper helper) {
+        SpawnCommandsGameTests.aFinishedLoadLeavesTheTicketAnotherLoadStillNeeds(helper);
+    }
+
+    @GameTest
+    public void vanillaTpLeavesTheDestinationChunkUnloaded(GameTestHelper helper) {
+        SpawnCommandsGameTests.vanillaTpLeavesTheDestinationChunkUnloaded(helper);
+    }
 }

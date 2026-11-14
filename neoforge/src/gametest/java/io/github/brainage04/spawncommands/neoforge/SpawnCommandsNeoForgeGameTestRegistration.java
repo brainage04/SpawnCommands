@@ -75,6 +75,33 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 SpawnCommandsGameTests::commandsClickForThePlayerThroughModFeedback);
         register(
                 event,
+                "spawns_in_lava_or_over_the_void_fail_without_moving_the_player",
+                SpawnCommandsGameTests::spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer);
+        register(
+                event,
+                "a_world_spawn_in_lava_in_an_unloaded_chunk_fails_once_the_chunk_loads",
+                SpawnCommandsGameTests::aWorldSpawnInLavaInAnUnloadedChunkFailsOnceTheChunkLoads);
+        register(
+                event,
+                "world_spawn_in_an_unloaded_chunk_teleports_after_loading_it",
+                SpawnCommandsGameTests::worldSpawnInAnUnloadedChunkTeleportsAfterLoadingIt);
+        register(
+                event,
+                "a_world_spawn_inside_the_ground_of_an_unloaded_chunk_still_fails",
+                SpawnCommandsGameTests::aWorldSpawnInsideTheGroundOfAnUnloadedChunkStillFails);
+        // vanillaTpLeavesTheDestinationChunkUnloaded runs on Fabric only: on NeoForge the
+        // destination chunk was loaded right after /tp in a GameTest run on 14 Nov 2026, and the
+        // test describes vanilla's /tp, not this mod.
+        register(
+                event,
+                "a_second_spawn_request_while_the_chunk_loads_waits_for_the_load_too",
+                SpawnCommandsGameTests::aSecondSpawnRequestWhileTheChunkLoadsWaitsForTheLoadToo);
+        register(
+                event,
+                "a_finished_load_leaves_the_ticket_another_load_still_needs",
+                SpawnCommandsGameTests::aFinishedLoadLeavesTheTicketAnotherLoadStillNeeds);
+        register(
+                event,
                 "owners_revoke_guests_who_are_offline",
                 SpawnCommandsGameTests::ownersRevokeGuestsWhoAreOffline);
     }
