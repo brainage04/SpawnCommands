@@ -12,12 +12,14 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.TicketStorage;
 import net.minecraft.world.phys.Vec3;
 
-/** The chunk ticket GameTests, in the package of {@link SpawnTeleportService} to reach its loads. */
+/**
+ * The chunk ticket GameTests, in the package of {@link SpawnTeleportService} to reach its loads.
+ */
 public final class SpawnTicketGameTests {
     private SpawnTicketGameTests() {}
 
-    // The GameTest server runs its ticks as fast as it can, so a tick budget cannot bound a wait for
-    // a chunk load: the load needs wall time, and the test itself checks that instead.
+    // The GameTest server runs its ticks as fast as it can, so a tick budget cannot bound a wait
+    // for a chunk load: the load needs wall time, and the test itself checks that instead.
     private static final long LOAD_TIMEOUT_NANOS = 120_000_000_000L;
 
     private static void assertStillLoading(GameTestHelper helper, long started) {
@@ -41,8 +43,8 @@ public final class SpawnTicketGameTests {
     }
 
     private static boolean holdsLoadingTicket(ServerLevel level, ChunkPos chunk) {
-        return level.getDataStorage().computeIfAbsent(TicketStorage.TYPE).getTickets(chunk.pack())
-                .stream()
+        TicketStorage tickets = level.getDataStorage().computeIfAbsent(TicketStorage.TYPE);
+        return tickets.getTickets(chunk.pack()).stream()
                 .anyMatch(ticket -> ticket.getType() == TicketType.PLAYER_LOADING);
     }
 
@@ -118,7 +120,8 @@ public final class SpawnTicketGameTests {
                 1,
                 () -> {
                     arrived[0] = true;
-                    loadedOnArrival[0] = level.getChunkSource().getChunkNow(far.x(), far.z()) != null;
+                    loadedOnArrival[0] =
+                            level.getChunkSource().getChunkNow(far.x(), far.z()) != null;
                 });
         // Another mod's teleport waiting on the same chunk ends: tickets of one type and level are
         // one ticket, so its release removes the ticket this load took as well.
