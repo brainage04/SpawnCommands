@@ -31,8 +31,12 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
@@ -937,8 +941,10 @@ public final class SpawnCommandsGameTests {
     }
 
     /**
-     * A world spawn with lava at head height, where the column below the feet holds none, fails;
-     * with the lava a block higher, above the player's 1.8 block box, it still works.
+     * A world spawn with lava at head height, where the column below the feet holds none, fails,
+     * also for a player who crawls now and could stand up there; with the lava a block higher,
+     * above the player's 1.8 block box, it still works. Lava beside the spawn fails a player whose
+     * box reaches 0.0005 blocks into it, and not one whose box stops 0.0005 blocks short.
      */
     public static void aSpawnWithLavaAtHeadHeightFails(GameTestHelper helper) {
         try (GameTestPlayer joined =
@@ -965,6 +971,27 @@ public final class SpawnCommandsGameTests {
                     "[SpawnCommands] Could not teleport to world spawn because it is in lava.",
                     0xFF5555);
 
+            // A crawling player's box is 0.6 blocks tall (Avatar.java:28), under the lava.
+            player.setPose(Pose.SWIMMING);
+            joined.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    spawn,
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 0,
+                                    "A world spawn with lava at head height must fail for a"
+                                            + " crawling player"));
+            helper.assertTrue(
+                    player.position().equals(before),
+                    "A spawn with lava at head height must not move a crawling player");
+            assertMessage(
+                    helper,
+                    joined,
+                    "[SpawnCommands] Could not teleport to world spawn because it is in lava.",
+                    0xFF5555);
+            player.setPose(Pose.STANDING);
+
             helper.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
             helper.setBlock(new BlockPos(2, 3, 2), Blocks.LAVA);
             joined.clearMessages();
@@ -977,21 +1004,62 @@ public final class SpawnCommandsGameTests {
                                     "A world spawn with lava above the player's head must still"
                                             + " work, got "
                                             + joined.messageTexts()));
+
+            // Lava hurts a box that overlaps it by more than 1e-7 (Entity.java:1346, 1376,
+            // 1426-1428; AABB.java:401-409). The scale makes the box 1.001 blocks wide, and the
+            // attribute only resizes the box on the player's next tick (LivingEntity.java:1116,
+            // 1142-1143).
+            helper.setBlock(new BlockPos(2, 3, 2), Blocks.AIR);
+            helper.setBlock(new BlockPos(3, 1, 2), Blocks.LAVA);
+            player.getAttribute(Attributes.SCALE).setBaseValue(1.001 / 0.6);
+            player.refreshDimensions();
+            Vec3 atSpawn = player.position();
+            joined.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    spawn,
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 0,
+                                    "A world spawn whose box reaches 0.0005 blocks into lava must"
+                                            + " fail"));
+            helper.assertTrue(
+                    player.position().equals(atSpawn),
+                    "A spawn whose box reaches into lava must not move the player");
+            assertMessage(
+                    helper,
+                    joined,
+                    "[SpawnCommands] Could not teleport to world spawn because it is in lava.",
+                    0xFF5555);
+            player.getAttribute(Attributes.SCALE).setBaseValue(0.999 / 0.6);
+            player.refreshDimensions();
+            joined.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    spawn,
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 1,
+                                    "A world spawn whose box stops 0.0005 blocks short of lava must"
+                                            + " still work, got "
+                                            + joined.messageTexts()));
         }
         helper.succeed();
     }
 
     /**
-     * Lava cannot hurt a creative or spectator player, so a spawn in lava still takes them there,
-     * while a spawn over the void, whose damage gets past their protection, is still refused.
+     * Lava cannot hurt a creative or spectator player, or one whose Fire Resistance never ends, so
+     * a spawn in lava still takes them there, while a spawn over the void, whose damage gets past
+     * their protection, is still refused. Fire Resistance that runs out does not count.
      */
     public static void lavaDoesNotStopACreativeOrSpectatorPlayer(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         try (GameTestPlayer creative =
                         GameTestPlayer.join(helper, "SpawnCreative").gameMode(GameType.CREATIVE);
                 GameTestPlayer spectator =
-                        GameTestPlayer.join(helper, "SpawnSpectator")
-                                .gameMode(GameType.SPECTATOR)) {
+                        GameTestPlayer.join(helper, "SpawnSpectator").gameMode(GameType.SPECTATOR);
+                GameTestPlayer fireproof =
+                        GameTestPlayer.join(helper, "SpawnFireproof").gameMode(GameType.SURVIVAL)) {
             BlockPos lava = helper.absolutePos(new BlockPos(4, 1, 2));
             helper.setBlock(new BlockPos(4, 1, 2), Blocks.LAVA);
             for (GameTestPlayer joined : List.of(creative, spectator)) {
@@ -1012,6 +1080,46 @@ public final class SpawnCommandsGameTests {
                         player.blockPosition().equals(lava),
                         "The player must arrive in the lava, got " + player.position());
             }
+
+            ServerPlayer survivor = fireproof.player();
+            fireproof.moveTo(helper, new BlockPos(1, 1, 1));
+            survivor.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, 9600));
+            Vec3 outside = survivor.position();
+            fireproof.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    lava,
+                    () ->
+                            helper.assertTrue(
+                                    execute(survivor, "spawn") == 0,
+                                    "A world spawn in lava must fail while Fire Resistance can run"
+                                            + " out"));
+            helper.assertTrue(
+                    survivor.position().equals(outside),
+                    "A spawn in lava must not move a player whose Fire Resistance can run out");
+            assertMessage(
+                    helper,
+                    fireproof,
+                    "[SpawnCommands] Could not teleport to world spawn because it is in lava.",
+                    0xFF5555);
+            survivor.removeEffect(MobEffects.FIRE_RESISTANCE);
+            survivor.addEffect(
+                    new MobEffectInstance(
+                            MobEffects.FIRE_RESISTANCE, MobEffectInstance.INFINITE_DURATION));
+            fireproof.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    lava,
+                    () ->
+                            helper.assertTrue(
+                                    execute(survivor, "spawn") == 1,
+                                    "A world spawn in lava must take a player whose Fire"
+                                            + " Resistance never ends there, got "
+                                            + fireproof.messageTexts()));
+            helper.assertTrue(
+                    survivor.blockPosition().equals(lava),
+                    "The fire resistant player must arrive in the lava, got "
+                            + survivor.position());
 
             ServerPlayer player = creative.player();
             creative.moveTo(helper, new BlockPos(1, 1, 1));
