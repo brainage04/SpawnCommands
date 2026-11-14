@@ -93,6 +93,16 @@ public final class SpawnCommandsGameTest {
         SpawnCommandsGameTests.aWorldSpawnInsideTheGroundOfAnUnloadedChunkStillFails(helper);
     }
 
+    @GameTest(maxTicks = 1000000)
+    public void aSecondSpawnRequestWhileTheChunkLoadsWaitsForTheLoadToo(GameTestHelper helper) {
+        SpawnCommandsGameTests.aSecondSpawnRequestWhileTheChunkLoadsWaitsForTheLoadToo(helper);
+    }
+
+    @GameTest(maxTicks = 1000000)
+    public void aFinishedLoadLeavesTheTicketAnotherLoadStillNeeds(GameTestHelper helper) {
+        SpawnCommandsGameTests.aFinishedLoadLeavesTheTicketAnotherLoadStillNeeds(helper);
+    }
+
     @GameTest
     public void vanillaTpLeavesTheDestinationChunkUnloaded(GameTestHelper helper) {
         SpawnCommandsGameTests.vanillaTpLeavesTheDestinationChunkUnloaded(helper);
