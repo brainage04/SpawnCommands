@@ -1,9 +1,12 @@
 package io.github.brainage04.spawncommands;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
@@ -21,6 +24,14 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 public final class SpawnTeleportService {
+    /**
+     * How many pending teleports hold a ticket on each chunk. Tickets of one type and level are a
+     * single entry (TicketStorage.java:147-156, 223-240), so giving back the ticket when one
+     * teleport ends would take it away from another teleport still waiting on the same chunk. Only
+     * read and written on the server thread; a level that is gone takes its counts with it.
+     */
+    private static final Map<ServerLevel, Map<ChunkPos, Integer>> TICKETS = new WeakHashMap<>();
+
     private SpawnTeleportService() {}
 
     public static int teleportToWorldSpawn(ServerPlayer player) {
@@ -39,7 +50,8 @@ public final class SpawnTeleportService {
         // would generate it on the server thread. A ticket loads it off the server thread
         // instead, as vanilla's own spawn search does for a chunk it must inspect
         // (PlayerSpawnFinder.java:114-121); the answer reaches the player from the callback a few
-        // ticks later, and the command reports that it was accepted.
+        // ticks later.
+        SpawnCommands.FEEDBACK.neutral(player, "Loading world spawn...");
         load(level, unloaded)
                 .whenCompleteAsync(
                         (ignored, failure) -> {
@@ -98,7 +110,13 @@ public final class SpawnTeleportService {
             for (int z = SectionPos.posToSectionCoord(standing.minZ);
                     z <= SectionPos.posToSectionCoord(standing.maxZ);
                     z++) {
-                if (!level.hasChunk(x, z)) unloaded.add(new ChunkPos(x, z));
+                // Not hasChunk: it is already true while another teleport's ticket is still
+                // loading the chunk (ServerChunkCache.java:257-262), and reading a block there
+                // waits for the load on the server thread (ServerChunkCache.java:143-172).
+                // getChunkNow answers only once the chunk is full (ServerChunkCache.java:175-203).
+                if (level.getChunkSource().getChunkNow(x, z) == null) {
+                    unloaded.add(new ChunkPos(x, z));
+                }
             }
         }
         return new ArrayList<>(unloaded);
@@ -111,24 +129,33 @@ public final class SpawnTeleportService {
      * position uses and never expires (TicketType.java:20), so the load cannot be abandoned half
      * way; SPAWN_SEARCH expires after one tick (TicketType.java:18) and a chunk that is ready for
      * saving then loses it (TicketStorage.java:291-300) long before a cold chunk has generated,
-     * which leaves the future pending forever. {@link #release} gives the ticket back.
+     * which leaves the future pending forever. {@link #release} gives the ticket back. Public for
+     * the GameTests only, which live in another package.
      */
-    private static CompletableFuture<?> load(ServerLevel level, List<ChunkPos> chunks) {
-        CompletableFuture<?>[] loads =
-                chunks.stream()
-                        .map(
-                                pos ->
-                                        level.getChunkSource()
-                                                .addTicketAndLoadWithRadius(
-                                                        TicketType.PLAYER_LOADING, pos, 0))
-                        .toArray(CompletableFuture<?>[]::new);
+    public static CompletableFuture<?> load(ServerLevel level, List<ChunkPos> chunks) {
+        Map<ChunkPos, Integer> held = TICKETS.computeIfAbsent(level, ignored -> new HashMap<>());
+        CompletableFuture<?>[] loads = new CompletableFuture<?>[chunks.size()];
+        for (int i = 0; i < loads.length; i++) {
+            ChunkPos pos = chunks.get(i);
+            held.merge(pos, 1, Integer::sum);
+            loads[i] =
+                    level.getChunkSource()
+                            .addTicketAndLoadWithRadius(TicketType.PLAYER_LOADING, pos, 0);
+        }
         return CompletableFuture.allOf(loads);
     }
 
-    /** Gives back the tickets {@link #load} took, so they do not keep the chunks loaded. */
-    private static void release(ServerLevel level, List<ChunkPos> chunks) {
+    /**
+     * Gives back the tickets {@link #load} took, so they do not keep the chunks loaded, once no
+     * other pending teleport still needs them.
+     */
+    public static void release(ServerLevel level, List<ChunkPos> chunks) {
+        Map<ChunkPos, Integer> held = TICKETS.get(level);
         for (ChunkPos pos : chunks) {
-            level.getChunkSource().removeTicketWithRadius(TicketType.PLAYER_LOADING, pos, 0);
+            if (held.merge(pos, -1, Integer::sum) == 0) {
+                held.remove(pos);
+                level.getChunkSource().removeTicketWithRadius(TicketType.PLAYER_LOADING, pos, 0);
+            }
         }
     }
 

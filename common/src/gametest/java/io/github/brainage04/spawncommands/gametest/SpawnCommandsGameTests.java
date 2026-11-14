@@ -16,6 +16,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -30,6 +31,7 @@ import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Block;
@@ -669,7 +671,7 @@ public final class SpawnCommandsGameTests {
 
     private static void assertStillLoading(GameTestHelper helper, long started) {
         if (System.nanoTime() - started > LOAD_TIMEOUT_NANOS) {
-            helper.fail("The destination chunk did not load within 2 min of wall time");
+            helper.fail("The chunk did not load or unload within 2 min of wall time");
         }
     }
 
@@ -761,6 +763,114 @@ public final class SpawnCommandsGameTests {
                             "A world spawn in an unloaded chunk must not move the player");
                     joined.close();
                 });
+    }
+
+    public static void aSecondSpawnRequestWhileTheChunkLoadsWaitsForTheLoadToo(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        // Closed inside the final assertion, which runs after this method has returned.
+        GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnTwice");
+        ServerPlayer player = joined.player();
+        joined.moveTo(helper, new BlockPos(5, 1, 5));
+        BlockPos here = helper.absolutePos(new BlockPos(5, 1, 5));
+        BlockPos far =
+                new BlockPos(
+                        here.getX() + 100_000,
+                        level.getHeight(Heightmap.Types.MOTION_BLOCKING, here.getX(), here.getZ()),
+                        here.getZ() + 48_000);
+        int chunkX = SectionPos.blockToSectionCoord(far.getX());
+        int chunkZ = SectionPos.blockToSectionCoord(far.getZ());
+        helper.assertTrue(
+                !level.hasChunk(chunkX, chunkZ),
+                "The spawn's chunk must not be loaded before /spawn");
+        Vec3 expected = Vec3.atBottomCenterOf(far);
+        Vec3 before = player.position();
+        joined.clearMessages();
+        withWorldSpawn(
+                helper,
+                far,
+                () -> {
+                    helper.assertTrue(
+                            execute(player, "spawn") == 1,
+                            "A world spawn in a chunk nobody loaded must be accepted while its"
+                                    + " chunk loads");
+                    helper.assertTrue(
+                            execute(player, "spawn") == 1,
+                            "A repeated /spawn while the chunk loads must be accepted too");
+                });
+        helper.assertTrue(
+                level.getChunkSource().getChunkNow(chunkX, chunkZ) == null,
+                "A repeated /spawn while the chunk loads must wait for the load as well, not load"
+                        + " the chunk on the server thread");
+        helper.assertTrue(
+                player.position().equals(before),
+                "Neither /spawn may move the player before the chunk has loaded");
+        helper.assertTrue(
+                joined.messageTexts()
+                        .equals(
+                                List.of(
+                                        "[SpawnCommands] Loading world spawn...",
+                                        "[SpawnCommands] Loading world spawn...")),
+                "Each /spawn must say once that the world spawn is loading, got "
+                        + joined.messageTexts());
+        long started = System.nanoTime();
+        helper.succeedWhen(
+                () -> {
+                    assertStillLoading(helper, started);
+                    helper.assertTrue(
+                            player.position().equals(expected),
+                            "The player must arrive at the world spawn: expected "
+                                    + expected
+                                    + ", landed on "
+                                    + player.position());
+                    helper.assertTrue(
+                            joined.received("[SpawnCommands] Teleported to world spawn."),
+                            "The arrival must be reported, got " + joined.messageTexts());
+                    joined.close();
+                });
+    }
+
+    public static void aFinishedLoadLeavesTheTicketAnotherLoadStillNeeds(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos here = helper.absolutePos(new BlockPos(5, 1, 5));
+        ChunkPos far =
+                new ChunkPos(
+                        SectionPos.blockToSectionCoord(here.getX() + 100_000),
+                        SectionPos.blockToSectionCoord(here.getZ() + 72_000));
+        helper.assertTrue(
+                level.getChunkSource().getChunkNow(far.x(), far.z()) == null,
+                "The chunk must not be loaded before the test");
+        // Two teleports wait on the same chunk, and the second one ends first, as one does whose
+        // player left or whose other chunks were already there.
+        CompletableFuture<?> first = SpawnTeleportService.load(level, List.of(far));
+        SpawnTeleportService.load(level, List.of(far));
+        SpawnTeleportService.release(level, List.of(far));
+        long started = System.nanoTime();
+        helper.startSequence()
+                .thenWaitUntil(
+                        () -> {
+                            assertStillLoading(helper, started);
+                            helper.assertTrue(
+                                    first.isDone(), "The first teleport's load must finish");
+                        })
+                // Room for the distance manager to drop the chunk if its ticket had gone.
+                .thenIdle(5)
+                .thenExecute(
+                        () -> {
+                            helper.assertTrue(
+                                    level.getChunkSource().getChunkNow(far.x(), far.z()) != null,
+                                    "The chunk must stay loaded while the first teleport still"
+                                            + " needs it");
+                            SpawnTeleportService.release(level, List.of(far));
+                        })
+                .thenWaitUntil(
+                        () -> {
+                            assertStillLoading(helper, started);
+                            helper.assertTrue(
+                                    level.getChunkSource().getChunkNow(far.x(), far.z()) == null,
+                                    "The last teleport to end must give the ticket back");
+                        })
+                .thenSucceed();
     }
 
     private static List<String> suggestions(ServerPlayer player, String input) {
