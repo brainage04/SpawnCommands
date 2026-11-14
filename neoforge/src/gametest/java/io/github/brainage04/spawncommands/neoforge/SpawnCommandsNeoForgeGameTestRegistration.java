@@ -103,8 +103,8 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 "a_world_spawn_inside_the_ground_of_an_unloaded_chunk_still_fails",
                 SpawnCommandsGameTests::aWorldSpawnInsideTheGroundOfAnUnloadedChunkStillFails);
         // vanillaTpLeavesTheDestinationChunkUnloaded runs on Fabric only: on NeoForge the
-        // destination chunk was loaded right after /tp in a GameTest run on 14 Nov 2026, and the
-        // test describes vanilla's /tp, not this mod.
+        // destination chunk was loaded right after /tp in a GameTest run on 14 Nov 2026, for a
+        // reason not yet found, and the test describes vanilla's /tp, not this mod.
         register(
                 event,
                 "a_second_spawn_request_while_the_chunk_loads_waits_for_the_load_too",
