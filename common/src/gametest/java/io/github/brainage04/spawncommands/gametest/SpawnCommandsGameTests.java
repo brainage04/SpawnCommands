@@ -906,6 +906,50 @@ public final class SpawnCommandsGameTests {
         helper.succeed();
     }
 
+    /**
+     * A world spawn with lava at head height, where the column below the feet holds none, fails;
+     * with the lava a block higher, above the player's 1.8 block box, it still works.
+     */
+    public static void aSpawnWithLavaAtHeadHeightFails(GameTestHelper helper) {
+        try (GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnLavaHead")) {
+            ServerPlayer player = joined.player();
+            joined.moveTo(helper, new BlockPos(5, 1, 5));
+            Vec3 before = player.position();
+            BlockPos spawn = helper.absolutePos(new BlockPos(2, 1, 2));
+            helper.setBlock(new BlockPos(2, 2, 2), Blocks.LAVA);
+            joined.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    spawn,
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 0,
+                                    "A world spawn with lava at head height must fail"));
+            helper.assertTrue(
+                    player.position().equals(before),
+                    "A spawn with lava at head height must not move the player");
+            assertMessage(
+                    helper,
+                    joined,
+                    "[SpawnCommands] Could not teleport to world spawn because it is in lava.",
+                    0xFF5555);
+
+            helper.setBlock(new BlockPos(2, 2, 2), Blocks.AIR);
+            helper.setBlock(new BlockPos(2, 3, 2), Blocks.LAVA);
+            joined.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    spawn,
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 1,
+                                    "A world spawn with lava above the player's head must still"
+                                            + " work, got "
+                                            + joined.messageTexts()));
+        }
+        helper.succeed();
+    }
+
     public static void aSecondSpawnRequestWhileTheChunkLoadsWaitsForTheLoadToo(
             GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
