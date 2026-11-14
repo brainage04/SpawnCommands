@@ -2,6 +2,7 @@ package io.github.brainage04.spawncommands.neoforge;
 
 import io.github.brainage04.spawncommands.SpawnCommands;
 import io.github.brainage04.spawncommands.SpawnTicketGameTests;
+import io.github.brainage04.spawncommands.gametest.SpawnAccessDataGameTests;
 import io.github.brainage04.spawncommands.gametest.SpawnCommandsGameTests;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -82,6 +83,10 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 event,
                 "a_spawn_in_water_still_teleports",
                 SpawnCommandsGameTests::aSpawnInWaterStillTeleports);
+        register(
+                event,
+                "a_spawn_access_file_keeps_its_data_through_a_load_and_a_save",
+                SpawnAccessDataGameTests::aSpawnAccessFileKeepsItsDataThroughALoadAndASave);
         register(
                 event,
                 "a_spawn_with_lava_at_head_height_fails",

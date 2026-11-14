@@ -1,0 +1,7 @@
+{
+  "environment": "minecraft:default",
+  "structure": "minecraftmodconventions:empty",
+  "max_ticks": 20,
+  "type": "minecraft:function",
+  "function": "spawncommands:a_spawn_access_file_keeps_its_data_through_a_load_and_a_save"
+}
