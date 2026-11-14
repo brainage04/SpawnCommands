@@ -366,9 +366,11 @@ public final class SpawnTeleportService {
      * (SpreadPlayersCommand.java:344-362), and must not be a liquid. Running out of blocks before
      * the minimum build height is the void. Lava is the liquid that kills, the one vanilla's lava
      * damage names (FluidTags.LAVA, Entity.java:1772-1774); water is survivable, so a spawn in it
-     * is still usable. The player is in lava wherever any part of their box is, which the column
-     * below their feet misses for lava at head height: the game tests the box, shrunk by 0.001,
-     * against each fluid's height (Entity.java:4211-4213, EntityFluidInteraction.java:40-73).
+     * is still usable. Lava hurts the player wherever their box touches it, which the column below
+     * their feet misses for lava at head height: Entity.checkInsideBlocks visits each block under
+     * the box shrunk by 1e-5 (Entity.java:1346-1354), and LavaFluid.entityInside deals the damage
+     * (LavaFluid.java:120-124) when the box overlaps that block's fluid (Entity.java:1376,
+     * 1394-1396, 1426-1435).
      */
     private static Deadly deadlyAt(ServerLevel level, ServerPlayer player, Vec3 destination) {
         // Lava does not hurt a creative or spectator player (Player.java:677-679), who only sinks
@@ -376,15 +378,12 @@ public final class SpawnTeleportService {
         boolean lavaHurts =
                 !player.getAbilities().invulnerable
                         || level.damageSources().lava().is(DamageTypeTags.BYPASSES_INVULNERABILITY);
-        AABB box =
-                player.getBoundingBox()
-                        .move(destination.subtract(player.position()))
-                        .deflate(0.001);
-        for (BlockPos pos : BlockPos.betweenClosed(box)) {
+        AABB box = player.getBoundingBox().move(destination.subtract(player.position()));
+        for (BlockPos pos : BlockPos.betweenClosed(box.deflate(1.0E-5F))) {
             FluidState fluid = level.getFluidState(pos);
             if (lavaHurts
                     && fluid.is(FluidTags.LAVA)
-                    && pos.getY() + fluid.getHeight(level, pos) >= box.minY) {
+                    && box.collidedAlongVector(Vec3.ZERO, List.of(fluid.getAABB(level, pos)))) {
                 return Deadly.LAVA;
             }
         }
