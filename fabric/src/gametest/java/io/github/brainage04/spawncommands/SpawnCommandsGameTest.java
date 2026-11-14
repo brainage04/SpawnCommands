@@ -103,6 +103,11 @@ public final class SpawnCommandsGameTest {
         SpawnCommandsGameTests.aSpawnWithLavaAtHeadHeightFails(helper);
     }
 
+    @GameTest
+    public void lavaDoesNotStopACreativeOrSpectatorPlayer(GameTestHelper helper) {
+        SpawnCommandsGameTests.lavaDoesNotStopACreativeOrSpectatorPlayer(helper);
+    }
+
     @GameTest(maxTicks = 1000000)
     public void aWorldSpawnInLavaInAnUnloadedChunkFailsOnceTheChunkLoads(GameTestHelper helper) {
         SpawnCommandsGameTests.aWorldSpawnInLavaInAnUnloadedChunkFailsOnceTheChunkLoads(helper);

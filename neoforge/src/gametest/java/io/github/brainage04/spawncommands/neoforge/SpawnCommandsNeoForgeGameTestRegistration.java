@@ -84,6 +84,10 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 SpawnCommandsGameTests::aSpawnWithLavaAtHeadHeightFails);
         register(
                 event,
+                "lava_does_not_stop_a_creative_or_spectator_player",
+                SpawnCommandsGameTests::lavaDoesNotStopACreativeOrSpectatorPlayer);
+        register(
+                event,
                 "a_world_spawn_in_lava_in_an_unloaded_chunk_fails_once_the_chunk_loads",
                 SpawnCommandsGameTests::aWorldSpawnInLavaInAnUnloadedChunkFailsOnceTheChunkLoads);
         register(

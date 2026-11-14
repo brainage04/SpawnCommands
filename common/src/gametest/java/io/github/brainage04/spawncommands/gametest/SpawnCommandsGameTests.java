@@ -950,6 +950,72 @@ public final class SpawnCommandsGameTests {
         helper.succeed();
     }
 
+    /**
+     * Lava cannot hurt a creative or spectator player, so a spawn in lava still takes them there,
+     * while a spawn over the void, whose damage gets past their protection, is still refused.
+     */
+    public static void lavaDoesNotStopACreativeOrSpectatorPlayer(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        try (GameTestPlayer creative =
+                        GameTestPlayer.join(helper, "SpawnCreative").gameMode(GameType.CREATIVE);
+                GameTestPlayer spectator =
+                        GameTestPlayer.join(helper, "SpawnSpectator")
+                                .gameMode(GameType.SPECTATOR)) {
+            BlockPos lava = helper.absolutePos(new BlockPos(4, 1, 2));
+            helper.setBlock(new BlockPos(4, 1, 2), Blocks.LAVA);
+            for (GameTestPlayer joined : List.of(creative, spectator)) {
+                ServerPlayer player = joined.player();
+                joined.moveTo(helper, new BlockPos(1, 1, 1));
+                joined.clearMessages();
+                withWorldSpawn(
+                        helper,
+                        lava,
+                        () ->
+                                helper.assertTrue(
+                                        execute(player, "spawn") == 1,
+                                        "A world spawn in lava must still take "
+                                                + player.getScoreboardName()
+                                                + " there, got "
+                                                + joined.messageTexts()));
+                helper.assertTrue(
+                        player.blockPosition().equals(lava),
+                        "The player must arrive in the lava, got " + player.position());
+            }
+
+            ServerPlayer player = creative.player();
+            creative.moveTo(helper, new BlockPos(1, 1, 1));
+            Vec3 before = player.position();
+            BlockPos overVoid = helper.absolutePos(new BlockPos(2, 1, 2)).offset(3_000, 0, 3_000);
+            level.getChunk(
+                    SectionPos.blockToSectionCoord(overVoid.getX()),
+                    SectionPos.blockToSectionCoord(overVoid.getZ()));
+            for (int y = level.getMinY(); y <= overVoid.getY(); y++) {
+                level.setBlockAndUpdate(
+                        new BlockPos(overVoid.getX(), y, overVoid.getZ()),
+                        Blocks.AIR.defaultBlockState());
+            }
+            creative.clearMessages();
+            withWorldSpawn(
+                    helper,
+                    overVoid,
+                    () ->
+                            helper.assertTrue(
+                                    execute(player, "spawn") == 0,
+                                    "A world spawn over the void must still be refused for a"
+                                            + " creative player"));
+            helper.assertTrue(
+                    player.position().equals(before),
+                    "A spawn over the void must not move a creative player");
+            assertMessage(
+                    helper,
+                    creative,
+                    "[SpawnCommands] Could not teleport to world spawn because it is over the"
+                            + " void.",
+                    0xFF5555);
+        }
+        helper.succeed();
+    }
+
     public static void aSecondSpawnRequestWhileTheChunkLoadsWaitsForTheLoadToo(
             GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
