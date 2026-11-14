@@ -74,4 +74,14 @@ public final class SpawnCommandsGameTest {
     public void worldSpawnInPowderSnowIsJudgedWhereItIs(GameTestHelper helper) {
         SpawnCommandsGameTests.worldSpawnInPowderSnowIsJudgedWhereItIs(helper);
     }
+
+    @GameTest
+    public void playerOnlyCommandsAnswerNonPlayersThroughModFeedback(GameTestHelper helper) {
+        SpawnCommandsGameTests.playerOnlyCommandsAnswerNonPlayersThroughModFeedback(helper);
+    }
+
+    @GameTest
+    public void commandsClickForThePlayerThroughModFeedback(GameTestHelper helper) {
+        SpawnCommandsGameTests.commandsClickForThePlayerThroughModFeedback(helper);
+    }
 }

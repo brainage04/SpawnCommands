@@ -24,7 +24,7 @@ Personal spawn points continue to use vanilla beds, respawn anchors, dimensions,
 - `/spawnshare revoke <players>` – revokes that access, also from players who are offline. It suggests the players who have access.
 - `/spawncommands` or `/spawncommands help` – lists these commands.
 
-Messages use BrainageLib's style: a grey `[SpawnCommands]` prefix with a green body for success and a red body for errors. SpawnCommands is listed in BrainageLib's `/servermods` help and first-join notice.
+Messages use BrainageLib's style: a grey `[SpawnCommands]` prefix with a green body for success and a red body for errors. SpawnCommands is listed in BrainageLib's `/servermods` help and first-join notice. Every command answers the player with a UI click sound, and a command only a player can use, run from the console, gets BrainageLib's shared "This command can only be used by players!" message.
 
 ## Known limits
 
