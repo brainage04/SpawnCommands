@@ -25,3 +25,10 @@ type="required"
 versionRange="${minecraft_version_range}"
 ordering="NONE"
 side="BOTH"
+
+[[dependencies.spawncommands]]
+modId="brainagelib"
+type="required"
+versionRange="[${brainagelib_version},3.0.0)"
+ordering="NONE"
+side="BOTH"
