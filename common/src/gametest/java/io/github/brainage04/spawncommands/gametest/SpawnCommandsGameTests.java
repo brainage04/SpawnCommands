@@ -851,7 +851,8 @@ public final class SpawnCommandsGameTests {
 
     public static void spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        try (GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnDangerous")) {
+        try (GameTestPlayer joined =
+                GameTestPlayer.join(helper, "SpawnDangerous").gameMode(GameType.SURVIVAL)) {
             ServerPlayer player = joined.player();
             joined.moveTo(helper, new BlockPos(5, 1, 5));
             Vec3 before = player.position();
@@ -911,7 +912,8 @@ public final class SpawnCommandsGameTests {
      * with the lava a block higher, above the player's 1.8 block box, it still works.
      */
     public static void aSpawnWithLavaAtHeadHeightFails(GameTestHelper helper) {
-        try (GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnLavaHead")) {
+        try (GameTestPlayer joined =
+                GameTestPlayer.join(helper, "SpawnLavaHead").gameMode(GameType.SURVIVAL)) {
             ServerPlayer player = joined.player();
             joined.moveTo(helper, new BlockPos(5, 1, 5));
             Vec3 before = player.position();
@@ -1085,7 +1087,8 @@ public final class SpawnCommandsGameTests {
             GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         // Closed inside the final step, which runs after this method has returned.
-        GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnLavaFar");
+        GameTestPlayer joined =
+                GameTestPlayer.join(helper, "SpawnLavaFar").gameMode(GameType.SURVIVAL);
         ServerPlayer player = joined.player();
         joined.moveTo(helper, new BlockPos(5, 1, 5));
         BlockPos here = helper.absolutePos(new BlockPos(5, 1, 5));
