@@ -915,7 +915,8 @@ public final class SpawnCommandsGameTests {
 
     /** A spawn in water is survivable, so the lava and void refusals leave it usable. */
     public static void aSpawnInWaterStillTeleports(GameTestHelper helper) {
-        try (GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnWater")) {
+        try (GameTestPlayer joined =
+                GameTestPlayer.join(helper, "SpawnWater").gameMode(GameType.SURVIVAL)) {
             ServerPlayer player = joined.player();
             joined.moveTo(helper, new BlockPos(5, 1, 5));
             BlockPos water = helper.absolutePos(new BlockPos(2, 1, 2));
