@@ -111,6 +111,10 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 SpawnTicketGameTests::aPlayerWhoLeavesDuringTheLoadGivesTheTicketBack);
         register(
                 event,
+                "a_spot_over_two_chunks_loads_both_again_when_another_mod_takes_one",
+                SpawnTicketGameTests::aSpotOverTwoChunksLoadsBothAgainWhenAnotherModTakesOne);
+        register(
+                event,
                 "owners_revoke_guests_who_are_offline",
                 SpawnCommandsGameTests::ownersRevokeGuestsWhoAreOffline);
     }

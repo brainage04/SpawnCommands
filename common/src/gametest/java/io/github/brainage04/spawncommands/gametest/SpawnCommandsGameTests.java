@@ -728,7 +728,7 @@ public final class SpawnCommandsGameTests {
         joined.moveTo(helper, new BlockPos(5, 1, 5));
         BlockPos buried =
                 helper.absolutePos(new BlockPos(5, 1, 5))
-                        .offset(100_000, 0, 0)
+                        .offset(100_000, 0, 192_000)
                         .atY(level.getMinY());
         int chunkX = SectionPos.blockToSectionCoord(buried.getX());
         int chunkZ = SectionPos.blockToSectionCoord(buried.getZ());
