@@ -68,8 +68,8 @@ public final class SpawnTeleportService {
     }
 
     /**
-     * Loads {@code chunks}, then runs {@code arrive} on the server thread once every chunk under the
-     * standing box at {@code destination} is full, unless the player has left by then. Package
+     * Loads {@code chunks}, then runs {@code arrive} on the server thread once every chunk under
+     * the standing box at {@code destination} is full, unless the player has left by then. Package
      * private for the GameTests.
      */
     static void loadThenArrive(
@@ -207,8 +207,7 @@ public final class SpawnTeleportService {
 
     /**
      * Gives back the tickets {@link #load} took, so they do not keep the chunks loaded, once no
-     * other pending teleport still needs them. A chunk this class holds no count for is left
-     * alone.
+     * other pending teleport still needs them. A chunk this class holds no count for is left alone.
      */
     static void release(ServerLevel level, List<ChunkPos> chunks) {
         Map<ChunkPos, Integer> held = TICKETS.get(level);
