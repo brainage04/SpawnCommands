@@ -921,10 +921,10 @@ public final class SpawnCommandsGameTests {
      * A spawn in the air fails for a survival player when the fall below it would hurt: a forced
      * personal spawn four blocks above stone (the game puts the player 0.1 above the block), a
      * world spawn one block and a bit above a stalagmite tip (2.5 blocks added and the damage
-     * doubled), and a world spawn six blocks above the floor, past the five block reach of the
-     * default safe fall distance. A world spawn three blocks above stone, the safe fall distance,
-     * or four blocks above water still works, and so does the personal spawn for a creative player
-     * and for one who may fly.
+     * doubled), and a world spawn six blocks above the floor. A world spawn three blocks above
+     * stone, the safe fall distance, or four or five blocks above water still works, and so does
+     * the personal spawn for a creative player, for one who may fly and while the fall_damage game
+     * rule is off.
      */
     // deprecated-api: NeoForge-only deprecation of the field vanilla reads (Player.java:1437)
     @SuppressWarnings("deprecation")
@@ -995,7 +995,8 @@ public final class SpawnCommandsGameTests {
                                 + " air above a long drop.",
                         0xFF5555);
             }
-            for (BlockPos spawn : List.of(new BlockPos(2, 4, 4), new BlockPos(4, 5, 4))) {
+            for (BlockPos spawn :
+                    List.of(new BlockPos(2, 4, 4), new BlockPos(4, 5, 4), new BlockPos(4, 6, 4))) {
                 BlockPos absolute = helper.absolutePos(spawn);
                 joined.clearMessages();
                 withWorldSpawn(
@@ -1013,6 +1014,24 @@ public final class SpawnCommandsGameTests {
                         player.position().equals(Vec3.atBottomCenterOf(absolute)),
                         "The player must arrive at " + spawn + ", got " + player.position());
             }
+
+            joined.moveTo(helper, new BlockPos(5, 1, 5));
+            joined.clearMessages();
+            boolean fallDamage = level.getGameRules().get(GameRules.FALL_DAMAGE);
+            // Set and restored within this call, so no other test sees the rule off.
+            level.getGameRules().set(GameRules.FALL_DAMAGE, false, level.getServer());
+            try {
+                helper.assertTrue(
+                        execute(player, "myspawn") == 1,
+                        "A personal spawn over a drop must still work while fall damage is off,"
+                                + " got "
+                                + joined.messageTexts());
+            } finally {
+                level.getGameRules().set(GameRules.FALL_DAMAGE, fallDamage, level.getServer());
+            }
+            helper.assertTrue(
+                    player.blockPosition().equals(high),
+                    "The player must arrive over the drop, got " + player.position());
 
             ServerPlayer flying = flier.player();
             flying.getAbilities().mayfly = true;
