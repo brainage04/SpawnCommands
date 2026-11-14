@@ -118,6 +118,11 @@ public final class SpawnCommandsGameTest {
         SpawnTicketGameTests.aPlayerWhoLeavesDuringTheLoadGivesTheTicketBack(helper);
     }
 
+    @GameTest(maxTicks = 1000000)
+    public void aSpotOverTwoChunksLoadsBothAgainWhenAnotherModTakesOne(GameTestHelper helper) {
+        SpawnTicketGameTests.aSpotOverTwoChunksLoadsBothAgainWhenAnotherModTakesOne(helper);
+    }
+
     @GameTest
     public void vanillaTpLeavesTheDestinationChunkUnloaded(GameTestHelper helper) {
         SpawnCommandsGameTests.vanillaTpLeavesTheDestinationChunkUnloaded(helper);
