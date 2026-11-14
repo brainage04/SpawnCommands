@@ -16,7 +16,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -31,7 +30,6 @@ import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Block;
@@ -828,49 +826,6 @@ public final class SpawnCommandsGameTests {
                             "The arrival must be reported, got " + joined.messageTexts());
                     joined.close();
                 });
-    }
-
-    public static void aFinishedLoadLeavesTheTicketAnotherLoadStillNeeds(GameTestHelper helper) {
-        ServerLevel level = helper.getLevel();
-        BlockPos here = helper.absolutePos(new BlockPos(5, 1, 5));
-        ChunkPos far =
-                new ChunkPos(
-                        SectionPos.blockToSectionCoord(here.getX() + 100_000),
-                        SectionPos.blockToSectionCoord(here.getZ() + 72_000));
-        helper.assertTrue(
-                level.getChunkSource().getChunkNow(far.x(), far.z()) == null,
-                "The chunk must not be loaded before the test");
-        // Two teleports wait on the same chunk, and the second one ends first, as one does whose
-        // player left or whose other chunks were already there.
-        CompletableFuture<?> first = SpawnTeleportService.load(level, List.of(far));
-        SpawnTeleportService.load(level, List.of(far));
-        SpawnTeleportService.release(level, List.of(far));
-        long started = System.nanoTime();
-        helper.startSequence()
-                .thenWaitUntil(
-                        () -> {
-                            assertStillLoading(helper, started);
-                            helper.assertTrue(
-                                    first.isDone(), "The first teleport's load must finish");
-                        })
-                // Room for the distance manager to drop the chunk if its ticket had gone.
-                .thenIdle(5)
-                .thenExecute(
-                        () -> {
-                            helper.assertTrue(
-                                    level.getChunkSource().getChunkNow(far.x(), far.z()) != null,
-                                    "The chunk must stay loaded while the first teleport still"
-                                            + " needs it");
-                            SpawnTeleportService.release(level, List.of(far));
-                        })
-                .thenWaitUntil(
-                        () -> {
-                            assertStillLoading(helper, started);
-                            helper.assertTrue(
-                                    level.getChunkSource().getChunkNow(far.x(), far.z()) == null,
-                                    "The last teleport to end must give the ticket back");
-                        })
-                .thenSucceed();
     }
 
     private static List<String> suggestions(ServerPlayer player, String input) {

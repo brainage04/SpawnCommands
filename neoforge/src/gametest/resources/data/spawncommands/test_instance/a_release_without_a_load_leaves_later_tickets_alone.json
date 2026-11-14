@@ -1,0 +1,7 @@
+{
+  "environment": "minecraft:default",
+  "structure": "minecraftmodconventions:empty",
+  "max_ticks": 1000000,
+  "type": "minecraft:function",
+  "function": "spawncommands:a_release_without_a_load_leaves_later_tickets_alone"
+}
