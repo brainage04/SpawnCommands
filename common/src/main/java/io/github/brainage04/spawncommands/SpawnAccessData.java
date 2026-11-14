@@ -11,7 +11,6 @@ import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 
@@ -27,12 +26,13 @@ public final class SpawnAccessData extends SavedData {
                                                     .forGetter(SpawnAccessData::snapshot))
                                     .apply(instance, SpawnAccessData::new));
 
+    // No vanilla datafixer applies to mod data, and map data's fixes would run on this file. Both
+    // loaders skip datafixing for a null type: Fabric API's fabric-object-builder-api-v1
+    // SavedDataStorageMixin.handleNullDataFixType and NeoForge's SavedDataType/SavedDataStorage
+    // patches (26.3.0.99).
     public static final SavedDataType<SpawnAccessData> TYPE =
             new SavedDataType<>(
-                    SpawnCommands.of("spawn_access"),
-                    SpawnAccessData::new,
-                    CODEC,
-                    DataFixTypes.SAVED_DATA_MAP_DATA);
+                    SpawnCommands.of("spawn_access"), SpawnAccessData::new, CODEC, null);
 
     private final Map<UUID, Set<UUID>> shares = new HashMap<>();
 
