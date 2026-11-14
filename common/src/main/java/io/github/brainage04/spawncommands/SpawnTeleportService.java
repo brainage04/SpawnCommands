@@ -377,7 +377,9 @@ public final class SpawnTeleportService {
                 !player.getAbilities().invulnerable
                         || level.damageSources().lava().is(DamageTypeTags.BYPASSES_INVULNERABILITY);
         AABB box =
-                player.getBoundingBox().move(destination.subtract(player.position())).deflate(0.001);
+                player.getBoundingBox()
+                        .move(destination.subtract(player.position()))
+                        .deflate(0.001);
         for (BlockPos pos : BlockPos.betweenClosed(box)) {
             FluidState fluid = level.getFluidState(pos);
             if (lavaHurts
