@@ -917,6 +917,124 @@ public final class SpawnCommandsGameTests {
         helper.succeed();
     }
 
+    /**
+     * A spawn in the air fails for a survival player when the fall below it would hurt: a forced
+     * personal spawn four blocks above stone (the game puts the player 0.1 above the block), a
+     * world spawn one block and a bit above a stalagmite tip (2.5 blocks added and the damage
+     * doubled), and a world spawn six blocks above the floor, past the five block reach of the
+     * default safe fall distance. A world spawn three blocks above stone, the safe fall distance,
+     * or four blocks above water still works, and so does the personal spawn for a creative player
+     * and for one who may fly.
+     */
+    // deprecated-api: NeoForge-only deprecation of the field vanilla reads (Player.java:1437)
+    @SuppressWarnings("deprecation")
+    public static void spawnsInTheAirOverAHurtingDropFail(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        try (GameTestPlayer joined =
+                        GameTestPlayer.join(helper, "SpawnHigh").gameMode(GameType.SURVIVAL);
+                GameTestPlayer creative =
+                        GameTestPlayer.join(helper, "SpawnHighCreative")
+                                .gameMode(GameType.CREATIVE);
+                GameTestPlayer flier =
+                        GameTestPlayer.join(helper, "SpawnHighFlier").gameMode(GameType.SURVIVAL)) {
+            for (BlockPos stone :
+                    List.of(
+                            new BlockPos(2, 0, 2),
+                            new BlockPos(2, 0, 4),
+                            new BlockPos(0, 0, 0),
+                            new BlockPos(4, 0, 4))) {
+                helper.setBlock(stone, Blocks.STONE);
+            }
+            // Pointed dripstone's default state is a stalagmite tip (SpeleothemBlock.java:63-65).
+            helper.setBlock(new BlockPos(0, 1, 0), Blocks.POINTED_DRIPSTONE);
+            helper.setBlock(new BlockPos(4, 1, 4), Blocks.WATER);
+            BlockPos high = helper.absolutePos(new BlockPos(2, 5, 2));
+            // A forced respawn point is where an operator's /spawnpoint puts it
+            // (SetSpawnCommand.java:21, ServerPlayer.java:1121-1130).
+            for (GameTestPlayer owner : List.of(joined, creative, flier)) {
+                owner.player()
+                        .setRespawnPosition(
+                                new ServerPlayer.RespawnConfig(
+                                        LevelData.RespawnData.of(
+                                                level.dimension(), high, 0.0F, 0.0F),
+                                        true),
+                                false);
+            }
+            ServerPlayer player = joined.player();
+            joined.moveTo(helper, new BlockPos(5, 1, 5));
+            Vec3 before = player.position();
+            joined.clearMessages();
+            helper.assertTrue(
+                    execute(player, "myspawn") == 0,
+                    "A personal spawn over a hurting drop must fail");
+            helper.assertTrue(
+                    player.position().equals(before),
+                    "A personal spawn over a hurting drop must not move the player");
+            assertMessage(
+                    helper,
+                    joined,
+                    "[SpawnCommands] Could not teleport to your personal spawn because it is in"
+                            + " the air above a long drop.",
+                    0xFF5555);
+            for (BlockPos spawn : List.of(new BlockPos(0, 3, 0), new BlockPos(4, 6, 0))) {
+                joined.clearMessages();
+                withWorldSpawn(
+                        helper,
+                        helper.absolutePos(spawn),
+                        () ->
+                                helper.assertTrue(
+                                        execute(player, "spawn") == 0,
+                                        "A world spawn over a hurting drop must fail: " + spawn));
+                helper.assertTrue(
+                        player.position().equals(before),
+                        "A world spawn over a hurting drop must not move the player: " + spawn);
+                assertMessage(
+                        helper,
+                        joined,
+                        "[SpawnCommands] Could not teleport to world spawn because it is in the"
+                                + " air above a long drop.",
+                        0xFF5555);
+            }
+            for (BlockPos spawn : List.of(new BlockPos(2, 4, 4), new BlockPos(4, 5, 4))) {
+                BlockPos absolute = helper.absolutePos(spawn);
+                joined.clearMessages();
+                withWorldSpawn(
+                        helper,
+                        absolute,
+                        () ->
+                                helper.assertTrue(
+                                        execute(player, "spawn") == 1,
+                                        "A world spawn over a drop that does not hurt must still"
+                                                + " work: "
+                                                + spawn
+                                                + ", got "
+                                                + joined.messageTexts()));
+                helper.assertTrue(
+                        player.position().equals(Vec3.atBottomCenterOf(absolute)),
+                        "The player must arrive at " + spawn + ", got " + player.position());
+            }
+
+            ServerPlayer flying = flier.player();
+            flying.getAbilities().mayfly = true;
+            flying.onUpdateAbilities();
+            for (GameTestPlayer owner : List.of(creative, flier)) {
+                owner.moveTo(helper, new BlockPos(5, 1, 5));
+                helper.assertTrue(
+                        execute(owner.player(), "myspawn") == 1,
+                        "A personal spawn over a drop must still take "
+                                + owner.player().getScoreboardName()
+                                + " there, got "
+                                + owner.messageTexts());
+                helper.assertTrue(
+                        owner.player().blockPosition().equals(high),
+                        owner.player().getScoreboardName()
+                                + " must arrive over the drop, got "
+                                + owner.player().position());
+            }
+        }
+        helper.succeed();
+    }
+
     /** A spawn in water is survivable, so the lava and void refusals leave it usable. */
     public static void aSpawnInWaterStillTeleports(GameTestHelper helper) {
         try (GameTestPlayer joined = GameTestPlayer.join(helper, "SpawnWater")) {

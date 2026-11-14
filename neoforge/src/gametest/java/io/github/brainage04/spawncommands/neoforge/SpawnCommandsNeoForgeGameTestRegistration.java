@@ -76,6 +76,10 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 SpawnCommandsGameTests::commandsClickForThePlayerThroughModFeedback);
         register(
                 event,
+                "spawns_in_the_air_over_a_hurting_drop_fail",
+                SpawnCommandsGameTests::spawnsInTheAirOverAHurtingDropFail);
+        register(
+                event,
                 "spawns_in_lava_or_over_the_void_fail_without_moving_the_player",
                 SpawnCommandsGameTests::spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer);
         register(

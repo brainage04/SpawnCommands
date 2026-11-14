@@ -94,6 +94,11 @@ public final class SpawnCommandsGameTest {
     }
 
     @GameTest
+    public void spawnsInTheAirOverAHurtingDropFail(GameTestHelper helper) {
+        SpawnCommandsGameTests.spawnsInTheAirOverAHurtingDropFail(helper);
+    }
+
+    @GameTest
     public void spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer(GameTestHelper helper) {
         SpawnCommandsGameTests.spawnsInLavaOrOverTheVoidFailWithoutMovingThePlayer(helper);
     }
