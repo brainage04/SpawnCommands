@@ -154,7 +154,6 @@ public final class SpawnCommandRegistration {
         return cached.orElse(null);
     }
 
-    // The names the cache knows, plus the players online now, as GameProfileArgument suggested.
     private static CompletableFuture<Suggestions> suggestOwners(
             CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
         return SharedSuggestionProvider.suggest(
