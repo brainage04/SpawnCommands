@@ -141,6 +141,15 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 event,
                 "owners_revoke_guests_who_are_offline",
                 SpawnCommandsGameTests::ownersRevokeGuestsWhoAreOffline);
+        register(
+                event,
+                "reset_fall_rule_defaults_on",
+                SpawnCommandsGameTests::resetFallRuleDefaultsOn);
+        register(event, "fall_is_reset_on_arrival", SpawnCommandsGameTests::fallIsResetOnArrival);
+        register(
+                event,
+                "drop_check_counts_the_carried_fall_when_the_rule_is_off",
+                SpawnCommandsGameTests::dropCheckCountsTheCarriedFallWhenTheRuleIsOff);
     }
 
     private static void register(

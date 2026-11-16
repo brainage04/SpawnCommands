@@ -21,11 +21,13 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -46,6 +48,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RespawnAnchorBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
+import net.minecraft.world.level.gamerules.GameRule;
 import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.storage.LevelData;
@@ -461,8 +464,9 @@ public final class SpawnCommandsGameTests {
                                 entry ->
                                         entry.modId().equals(SpawnCommands.MOD_ID)
                                                 && entry.helpCommand().equals("/spawncommands help")
-                                                && entry.adminConfigCommand() == null),
-                "SpawnCommands must be registered in /servermods");
+                                                && "/gamerule spawncommands:reset_fall"
+                                                        .equals(entry.adminConfigCommand())),
+                "SpawnCommands must be registered in /servermods with its gamerule");
         var output = new CapturedCommandOutput();
         helper.getLevel()
                 .getServer()
@@ -1453,6 +1457,172 @@ public final class SpawnCommandsGameTests {
         return dispatcher.getCompletionSuggestions(parse).join().getList().stream()
                 .map(Suggestion::getText)
                 .toList();
+    }
+
+    /** The fall reset rule, looked up by name, or null after failing the test. */
+    private static GameRule<?> resetFallRule(GameTestHelper helper) {
+        GameRule<?> rule =
+                BuiltInRegistries.GAME_RULE.getValue(
+                        Identifier.fromNamespaceAndPath(SpawnCommands.MOD_ID, "reset_fall"));
+        if (rule == null) {
+            helper.fail("spawncommands:reset_fall gamerule is not registered");
+        }
+        return rule;
+    }
+
+    /**
+     * Runs {@code body} with the fall reset rule set to {@code on}, through the command a server
+     * owner uses, and puts the rule back afterwards so no other test sees it changed.
+     */
+    private static void withResetFall(GameTestHelper helper, boolean on, Runnable body) {
+        GameRule<?> rule = resetFallRule(helper);
+        if (rule == null) {
+            return;
+        }
+        MinecraftServer server = helper.getLevel().getServer();
+        String before = server.getGameRules().getAsString(rule);
+        server.getCommands()
+                .performPrefixedCommand(
+                        server.createCommandSourceStack(),
+                        "gamerule spawncommands:reset_fall " + on);
+        try {
+            helper.assertTrue(
+                    server.getGameRules().getAsString(rule).equals(String.valueOf(on)),
+                    "/gamerule spawncommands:reset_fall " + on + " did not set the rule");
+            body.run();
+        } finally {
+            server.getCommands()
+                    .performPrefixedCommand(
+                            server.createCommandSourceStack(),
+                            "gamerule spawncommands:reset_fall " + before);
+        }
+    }
+
+    /** The rule exists, and it is on without a server owner having to do anything. */
+    public static void resetFallRuleDefaultsOn(GameTestHelper helper) {
+        GameRule<?> rule = resetFallRule(helper);
+        if (rule == null) {
+            return;
+        }
+        helper.assertTrue(
+                Boolean.TRUE.equals(rule.defaultValue()),
+                "spawncommands:reset_fall defaults to " + rule.defaultValue());
+        helper.assertTrue(
+                "true".equals(helper.getLevel().getServer().getGameRules().getAsString(rule)),
+                "spawncommands:reset_fall is not on in a new world");
+        helper.succeed();
+    }
+
+    /**
+     * A player who is already falling arrives with the fall reset, as an ender pearl's teleport
+     * resets it (ThrownEnderpearl.java:123,135), so the landing below the arrival deals no damage.
+     * With the rule off the fall is kept, as vanilla's /tp keeps it (TeleportCommand.java:241-248
+     * resets only the vertical velocity and the ground flag). The kept fall here is shorter than
+     * the safe fall distance, because a longer one is refused by the drop check, which counts it
+     * ({@link #dropCheckCountsTheCarriedFallWhenTheRuleIsOff}).
+     */
+    public static void fallIsResetOnArrival(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        try (GameTestPlayer joined =
+                GameTestPlayer.join(helper, "SpawnFall").gameMode(GameType.SURVIVAL)) {
+            ServerPlayer player = joined.player();
+            joined.markLoaded();
+            helper.setBlock(new BlockPos(2, 0, 2), Blocks.STONE);
+            BlockPos spawn = helper.absolutePos(new BlockPos(2, 1, 2));
+            withWorldSpawn(
+                    helper,
+                    spawn,
+                    () -> {
+                        joined.moveTo(helper, new BlockPos(5, 1, 5));
+                        player.fallDistance = 8.0F;
+                        helper.assertTrue(
+                                execute(player, "spawn") == 1,
+                                "A world spawn on the ground must work");
+                        helper.assertTrue(
+                                player.fallDistance == 0.0F,
+                                "The arrival kept a fall of " + player.fallDistance + " blocks");
+                        land(player);
+                        helper.assertTrue(
+                                player.getHealth() == player.getMaxHealth(),
+                                "The arrival took "
+                                        + (player.getMaxHealth() - player.getHealth())
+                                        + " damage from a fall that was reset");
+                        withResetFall(
+                                helper,
+                                false,
+                                () -> {
+                                    joined.moveTo(helper, new BlockPos(5, 1, 5));
+                                    player.setHealth(player.getMaxHealth());
+                                    player.fallDistance = 2.0F;
+                                    helper.assertTrue(
+                                            execute(player, "spawn") == 1,
+                                            "A world spawn on the ground must work with the rule"
+                                                    + " off, got "
+                                                    + joined.messageTexts());
+                                    helper.assertTrue(
+                                            player.fallDistance == 2.0F,
+                                            "The arrival changed the fall to "
+                                                    + player.fallDistance
+                                                    + " blocks");
+                                    land(player);
+                                    helper.assertTrue(
+                                            player.getHealth() == player.getMaxHealth(),
+                                            "A kept fall shorter than the safe fall distance hurt");
+                                });
+                    });
+        }
+        helper.succeed();
+    }
+
+    /**
+     * With the rule off the drop check counts the fall the player already has, so a spawn on the
+     * ground is refused when that fall alone would hurt. With the rule on (its default) the same
+     * spawn works, because the arrival resets the fall.
+     */
+    public static void dropCheckCountsTheCarriedFallWhenTheRuleIsOff(GameTestHelper helper) {
+        try (GameTestPlayer joined =
+                GameTestPlayer.join(helper, "SpawnCarried").gameMode(GameType.SURVIVAL)) {
+            ServerPlayer player = joined.player();
+            helper.setBlock(new BlockPos(2, 0, 2), Blocks.STONE);
+            BlockPos spawn = helper.absolutePos(new BlockPos(2, 1, 2));
+            withWorldSpawn(
+                    helper,
+                    spawn,
+                    () ->
+                            withResetFall(
+                                    helper,
+                                    false,
+                                    () -> {
+                                        joined.moveTo(helper, new BlockPos(5, 1, 5));
+                                        Vec3 before = player.position();
+                                        player.fallDistance = 8.0F;
+                                        joined.clearMessages();
+                                        helper.assertTrue(
+                                                execute(player, "spawn") == 0,
+                                                "A carried fall that would hurt was not counted");
+                                        helper.assertTrue(
+                                                player.position().equals(before),
+                                                "A refused spawn must not move the player");
+                                        assertMessage(
+                                                helper,
+                                                joined,
+                                                "[SpawnCommands] Could not teleport to world spawn"
+                                                        + " because it is in the air above a long"
+                                                        + " drop.",
+                                                0xFF5555);
+                                    }));
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Lands {@code player} where they are, as the server does from a client's movement packet
+     * (ServerGamePacketListenerImpl.java:1216): a tick's small downward move that ends on the
+     * ground, which adds that move to the fall distance and then deals the fall's damage
+     * (Entity.java:1584-1601).
+     */
+    private static void land(ServerPlayer player) {
+        player.doCheckFallDamage(0.0, -0.1, 0.0, true);
     }
 
     private static void withWorldSpawn(GameTestHelper helper, BlockPos spawn, Runnable body) {

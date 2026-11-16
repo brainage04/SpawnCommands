@@ -163,6 +163,21 @@ public final class SpawnCommandsGameTest {
         SpawnTicketGameTests.aSpotOverTwoChunksLoadsBothAgainWhenAnotherModTakesOne(helper);
     }
 
+    @GameTest(maxTicks = 40)
+    public void resetFallRuleDefaultsOn(GameTestHelper helper) {
+        SpawnCommandsGameTests.resetFallRuleDefaultsOn(helper);
+    }
+
+    @GameTest(maxTicks = 40)
+    public void fallIsResetOnArrival(GameTestHelper helper) {
+        SpawnCommandsGameTests.fallIsResetOnArrival(helper);
+    }
+
+    @GameTest(maxTicks = 40)
+    public void dropCheckCountsTheCarriedFallWhenTheRuleIsOff(GameTestHelper helper) {
+        SpawnCommandsGameTests.dropCheckCountsTheCarriedFallWhenTheRuleIsOff(helper);
+    }
+
     @GameTest
     public void vanillaTpLeavesTheDestinationChunkUnloaded(GameTestHelper helper) {
         SpawnCommandsGameTests.vanillaTpLeavesTheDestinationChunkUnloaded(helper);

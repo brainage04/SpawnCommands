@@ -359,7 +359,7 @@ public final class SpawnTeleportService {
                     label);
             return 0;
         }
-        if (dropHurts(level, player, destination)) {
+        if (dropHurts(level, player, destination, carriedFall(level, player))) {
             SpawnCommands.FEEDBACK.error(
                     player,
                     "Could not teleport to %s because it is in the air above a long drop.",
@@ -380,8 +380,21 @@ public final class SpawnTeleportService {
             SpawnCommands.FEEDBACK.error(player, "Could not teleport to %s.", label);
             return 0;
         }
+        if (level.getGameRules().get(SpawnCommands.RESET_FALL)) {
+            player.resetFallDistance();
+        }
         SpawnCommands.FEEDBACK.success(player, "Teleported to %s.", label);
         return 1;
+    }
+
+    /**
+     * The fall distance the player carries into the arrival, which the drop check adds to the drop
+     * below it. Zero while {@code spawncommands:reset_fall} is on, the default: the teleport then
+     * resets the fall on arrival as an ender pearl does (ThrownEnderpearl.java:123,135), so only
+     * the drop below the arrival counts.
+     */
+    private static double carriedFall(ServerLevel level, ServerPlayer player) {
+        return level.getGameRules().get(SpawnCommands.RESET_FALL) ? 0.0 : player.fallDistance;
     }
 
     /**
@@ -456,8 +469,16 @@ public final class SpawnTeleportService {
      *       entities to stand on get no credit.
      *   <li>No floor within {@link #MAX_DROP} counts as hurting: the fall may go on any distance.
      * </ul>
+     *
+     * <p>{@code carried} is the fall distance the player already has when they arrive, which the
+     * game keeps through a teleport (TeleportCommand.java:241-248 resets only the vertical velocity
+     * and the ground flag; only the ender pearl and the chorus fruit reset the fall,
+     * ThrownEnderpearl.java:123,135 and TeleportRandomlyConsumeEffect.java:83). It is zero when
+     * {@code spawncommands:reset_fall} is on. A resetting block on the way down resets it too, so
+     * it counts only for a drop that crosses none.
      */
-    private static boolean dropHurts(ServerLevel level, ServerPlayer player, Vec3 destination) {
+    private static boolean dropHurts(
+            ServerLevel level, ServerPlayer player, Vec3 destination, double carried) {
         // A player who may fly takes no fall damage (Player.java:1437-1441), and a creative or
         // spectator player cannot be hurt by it (Player.java:677-679).
         if (player.getAbilities().mayfly || player.getAbilities().invulnerable) {
@@ -481,7 +502,7 @@ public final class SpawnTeleportService {
             return true;
         }
         double floor = box.minY - fall;
-        double counted = fall;
+        double counted = fall + carried;
         Vec3 centre = box.getCenter();
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (double y = box.minY - 1.0E-4; y > floor; y -= 1.0) {
