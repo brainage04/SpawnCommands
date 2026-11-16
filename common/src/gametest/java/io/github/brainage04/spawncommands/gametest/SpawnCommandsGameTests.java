@@ -1551,8 +1551,7 @@ public final class SpawnCommandsGameTests {
         BlockPos bed = helper.absolutePos(head);
         float yaw = 30.0F;
         Vec3 expected =
-                BedBlock.findStandUpPosition(
-                                EntityTypes.PLAYER, level, bed, Direction.SOUTH, yaw)
+                BedBlock.findStandUpPosition(EntityTypes.PLAYER, level, bed, Direction.SOUTH, yaw)
                         .orElseThrow(
                                 () ->
                                         new AssertionError(
@@ -1689,14 +1688,12 @@ public final class SpawnCommandsGameTests {
                     "[SpawnCommands] No player named 'SpawnOffUnknown' has joined this server.",
                     0xFF5555);
             helper.assertTrue(
-                    guestPlayer.position().equals(before),
-                    "Refusals must not move the guest");
+                    guestPlayer.position().equals(before), "Refusals must not move the guest");
         }
         helper.succeed();
     }
 
-    public static void anOfflineOwnersSpawnInAnotherDimensionIsReachable(
-            GameTestHelper helper) {
+    public static void anOfflineOwnersSpawnInAnotherDimensionIsReachable(GameTestHelper helper) {
         ServerLevel nether =
                 helper.getLevel().getServer().getLevel(net.minecraft.world.level.Level.NETHER);
         helper.assertTrue(nether != null, "The Nether must be available");
@@ -1723,8 +1720,7 @@ public final class SpawnCommandsGameTests {
                                                         : Blocks.AIR.defaultBlockState()));
                 ownerPlayer.setRespawnPosition(
                         new ServerPlayer.RespawnConfig(
-                                LevelData.RespawnData.of(
-                                        nether.dimension(), spawn, 35.0F, 0.0F),
+                                LevelData.RespawnData.of(nether.dimension(), spawn, 35.0F, 0.0F),
                                 true),
                         false);
                 helper.assertTrue(
@@ -1735,14 +1731,12 @@ public final class SpawnCommandsGameTests {
                     helper.getLevel().getServer().getPlayerList().getPlayer(ownerId) == null,
                     "The owner must be offline for this test");
             writeCache(helper.getLevel().getServer(), Map.of(ownerId, "SpawnOffNOwner"));
-            Vec3 expected =
-                    new Vec3(spawn.getX() + 0.5D, spawn.getY() + 0.1D, spawn.getZ() + 0.5D);
+            Vec3 expected = new Vec3(spawn.getX() + 0.5D, spawn.getY() + 0.1D, spawn.getZ() + 0.5D);
             helper.assertTrue(
                     execute(guest.player(), "spawnof SpawnOffNOwner") == 1,
                     "/spawnof must reach an offline owner's spawn in another dimension");
             helper.assertTrue(
-                    guest.player().level() == nether
-                            && guest.player().position().equals(expected),
+                    guest.player().level() == nether && guest.player().position().equals(expected),
                     "The guest must reach the Nether spawn: expected "
                             + expected
                             + " in the Nether, landed on "

@@ -13,11 +13,11 @@ final class OfflineSpawn {
 
     /**
      * The respawn point {@code owner} last saved, exactly as the player data holds it. The server
-     * reads that data the same way when it loads the player ({@code
-     * PrepareSpawnTask.java:47-50}): {@code PlayerList.loadPlayerData} (which renames the
-     * singleplayer owner's file, {@code PlayerList.java:280-289}) and the game's own
-     * {@code RespawnConfig} codec over the tag, the codec {@code ServerPlayer} writes it with
-     * ({@code ServerPlayer.java:429}, read back at {@code 408}).
+     * reads that data the same way when it loads the player ({@code PrepareSpawnTask.java:47-50}):
+     * {@code PlayerList.loadPlayerData} (which renames the singleplayer owner's file, {@code
+     * PlayerList.java:280-289}) and the game's own {@code RespawnConfig} codec over the tag, the
+     * codec {@code ServerPlayer} writes it with ({@code ServerPlayer.java:429}, read back at {@code
+     * 408}).
      */
     static Optional<ServerPlayer.RespawnConfig> respawnConfig(
             MinecraftServer server, NameAndId owner) {
@@ -27,8 +27,7 @@ final class OfflineSpawn {
                     .loadPlayerData(owner)
                     .flatMap(
                             tag ->
-                                    TagValueInput.create(
-                                                    reporter, server.registryAccess(), tag)
+                                    TagValueInput.create(reporter, server.registryAccess(), tag)
                                             .read("respawn", ServerPlayer.RespawnConfig.CODEC));
         }
     }

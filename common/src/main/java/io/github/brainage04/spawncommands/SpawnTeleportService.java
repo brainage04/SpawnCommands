@@ -350,12 +350,7 @@ public final class SpawnTeleportService {
         ServerPlayer.RespawnPosAngle arrival = respawn.get();
         String label = ownSpawn ? "your personal spawn" : ownerName + "'s spawn";
         return teleport(
-                player,
-                respawnLevel,
-                arrival.position(),
-                arrival.yaw(),
-                arrival.pitch(),
-                label);
+                player, respawnLevel, arrival.position(), arrival.yaw(), arrival.pitch(), label);
     }
 
     private static int teleport(
