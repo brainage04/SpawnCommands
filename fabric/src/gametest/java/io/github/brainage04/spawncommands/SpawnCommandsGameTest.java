@@ -227,4 +227,9 @@ public final class SpawnCommandsGameTest {
     public void anAmbiguousRevokeListsEachGuestAndRevokesById(GameTestHelper helper) {
         SpawnCommandsGameTests.anAmbiguousRevokeListsEachGuestAndRevokesById(helper);
     }
+
+    @GameTest
+    public void aRevokeLooksUpANameNoHistoryHolds(GameTestHelper helper) {
+        SpawnCommandsGameTests.aRevokeLooksUpANameNoHistoryHolds(helper);
+    }
 }

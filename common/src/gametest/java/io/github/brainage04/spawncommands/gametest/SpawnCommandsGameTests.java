@@ -1873,7 +1873,6 @@ public final class SpawnCommandsGameTests {
                 });
     }
 
-    /** A name Mojang does not know is refused; no offline id may be invented for it. */
     /**
      * A found name that arrives too late to act on is not shared: the name is cached and the owner
      * is asked to run the command again, which then answers from the cache without a second lookup.
@@ -2085,6 +2084,80 @@ public final class SpawnCommandsGameTests {
                     access.guests(player.getUUID()).equals(List.of(holder)),
                     "Only the clicked guest may be revoked, got "
                             + access.guests(player.getUUID()));
+            NameLookup.reset(server);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A revoke of a name the server holds no history for asks Mojang which account it is and
+     * revokes that one; a name whose account is not a guest revokes nothing.
+     */
+    public static void aRevokeLooksUpANameNoHistoryHolds(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        GameProfile guest = new GameProfile(UUID.randomUUID(), "SpawnRenamed");
+        UUID notAGuest = UUID.randomUUID();
+        int[] lookups = {0};
+        NameLookup.install(
+                server,
+                new NameLookup(
+                        name -> {
+                            lookups[0]++;
+                            if (guest.getName().equalsIgnoreCase(name)) {
+                                return new NameLookup.Answer(
+                                        NameLookup.Status.FOUND, new NameAndId(guest));
+                            }
+                            if (name.equalsIgnoreCase("SpawnNotAGuest")) {
+                                return new NameLookup.Answer(
+                                        NameLookup.Status.FOUND,
+                                        new NameAndId(notAGuest, "SpawnNotAGuest"));
+                            }
+                            return new NameLookup.Answer(NameLookup.Status.NOT_FOUND, null);
+                        },
+                        Runnable::run,
+                        server::execute,
+                        server::isSameThread));
+        SpawnAccessData access = SpawnAccessData.get(server);
+        UUID stranger = UUID.randomUUID();
+        try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
+            ServerPlayer player = owner.player();
+            access.grant(player.getUUID(), List.of(guest.id(), stranger));
+            owner.clearMessages();
+            helper.assertTrue(
+                    share(player, "spawnshare revoke SpawnNeverSeen") == 0,
+                    "A name Mojang does not know must revoke nothing");
+            assertLastMessage(
+                    helper,
+                    owner,
+                    "[SpawnCommands] No guest of your spawn is named 'SpawnNeverSeen'.",
+                    0xFF5555);
+            helper.assertTrue(
+                    access.guests(player.getUUID()).containsAll(List.of(guest.id(), stranger)),
+                    "A name Mojang does not know must leave every guest in place");
+            owner.clearMessages();
+            helper.assertTrue(
+                    share(player, "spawnshare revoke SpawnRenamed") == 1,
+                    "A revoke by a name the server has no history for must revoke the account"
+                            + " Mojang names");
+            helper.assertTrue(
+                    access.guests(player.getUUID()).equals(List.of(stranger)),
+                    "Only the looked-up account may be revoked, got "
+                            + access.guests(player.getUUID()));
+            owner.clearMessages();
+            helper.assertTrue(
+                    share(player, "spawnshare revoke SpawnNotAGuest") == 0,
+                    "A name whose account is not a guest must revoke nothing");
+            assertLastMessage(
+                    helper,
+                    owner,
+                    "[SpawnCommands] SpawnNotAGuest does not have access to your spawn.",
+                    0xFF5555);
+            helper.assertTrue(
+                    access.guests(player.getUUID()).equals(List.of(stranger)),
+                    "A name whose account is not a guest must leave the guests in place, got "
+                            + access.guests(player.getUUID()));
+            helper.assertTrue(
+                    lookups[0] == 3, "All three revokes must be looked up, got " + lookups[0]);
             NameLookup.reset(server);
         }
         helper.succeed();

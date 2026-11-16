@@ -309,10 +309,7 @@ public final class SpawnCommandRegistration {
                 matches.add(cached.id());
             }
         }
-        if (matches.isEmpty()) {
-            return SpawnCommands.FEEDBACK.failure(
-                    source, "No guest of your spawn is named '%s'.", typed);
-        }
+        if (matches.isEmpty()) return revokeFoundByName(server, source, owner, typed);
         if (matches.size() == 1) {
             return report(source, access.revoke(ownerId, List.of(matches.getFirst())), false);
         }
@@ -323,6 +320,77 @@ public final class SpawnCommandRegistration {
                 typed);
         for (UUID guest : matches) owner.sendSystemMessage(describe(access, guest));
         return 0;
+    }
+
+    /**
+     * Revokes from the guest a name belongs to when nothing the server has seen for the owner's
+     * guests matches. The owner typed a name the server holds no history for, so the account
+     * behind it is looked up at Mojang: a guest whose id that is loses access, and a name
+     * belonging to anyone else revokes nothing.
+     */
+    private static int revokeFoundByName(
+            MinecraftServer server,
+            CommandSourceStack source,
+            ServerPlayer owner,
+            String typed) {
+        UUID ownerId = owner.getUUID();
+        SpawnCommands.FEEDBACK.neutral(source, "Looking up %s...", typed);
+        int[] outcome = {1};
+        NameLookup.of(server)
+                .lookup(
+                        typed,
+                        answer -> {
+                            ServerPlayer current = server.getPlayerList().getPlayer(ownerId);
+                            if (current == null) return;
+                            outcome[0] =
+                                    revokeAnswer(
+                                            server,
+                                            current.createCommandSourceStack(),
+                                            current,
+                                            typed,
+                                            answer);
+                        });
+        return outcome[0];
+    }
+
+    private static int revokeAnswer(
+            MinecraftServer server,
+            CommandSourceStack source,
+            ServerPlayer owner,
+            String typed,
+            NameLookup.Answer answer) {
+        UUID ownerId = owner.getUUID();
+        SpawnAccessData access = SpawnAccessData.get(server);
+        if (answer.status() == NameLookup.Status.FOUND) {
+            NameAndId profile = answer.profile();
+            if (!access.guests(ownerId).contains(profile.id())) {
+                return SpawnCommands.FEEDBACK.failure(
+                        source, "%s does not have access to your spawn.", profile.name());
+            }
+            // add() also rewrites usercache.json (CachedUserNameToIdResolver.java:86-95).
+            server.services().nameToIdCache().add(profile);
+            return report(source, access.revoke(ownerId, List.of(profile.id())), false);
+        }
+        if (answer.status() == NameLookup.Status.STALE) {
+            server.services().nameToIdCache().add(answer.profile());
+            return SpawnCommands.FEEDBACK.failure(
+                    source,
+                    "Found '%s', but the lookup took too long to act on. Run the command again.",
+                    typed);
+        }
+        return switch (answer.status()) {
+            case NOT_FOUND ->
+                    SpawnCommands.FEEDBACK.failure(
+                            source, "No guest of your spawn is named '%s'.", typed);
+            case FAILED ->
+                    SpawnCommands.FEEDBACK.failure(
+                            source, "Could not look up '%s' right now. Try again later.", typed);
+            default ->
+                    SpawnCommands.FEEDBACK.failure(
+                            source,
+                            "Too many name lookups on this server right now. Try again in a"
+                                    + " minute.");
+        };
     }
 
     /** One line of the ambiguous revoke list: the guest, its other names, and a revoke button. */

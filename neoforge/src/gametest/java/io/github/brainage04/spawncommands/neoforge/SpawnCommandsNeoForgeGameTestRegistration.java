@@ -189,6 +189,10 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 event,
                 "an_ambiguous_revoke_lists_each_guest_and_revokes_by_id",
                 SpawnCommandsGameTests::anAmbiguousRevokeListsEachGuestAndRevokesById);
+        register(
+                event,
+                "a_revoke_looks_up_a_name_no_history_holds",
+                SpawnCommandsGameTests::aRevokeLooksUpANameNoHistoryHolds);
     }
 
     private static void register(
