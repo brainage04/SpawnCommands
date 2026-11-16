@@ -5,6 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonParser;
+import com.mojang.authlib.GameProfileRepository;
+import com.mojang.authlib.ProfileLookupCallback;
+import com.mojang.authlib.exceptions.AuthenticationUnavailableException;
+import com.mojang.authlib.services.ProfileNotFoundException;
 import com.mojang.serialization.JsonOps;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -13,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import net.minecraft.SharedConstants;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.server.players.NameAndId;
@@ -189,8 +194,12 @@ class SpawnCommandsTest {
     }
 
     @Test
-    void aFailingRepositoryIsReportedAsFailed() {
-        NameLookup lookup = lookup(name -> failed());
+    void aRepositoryThatThrowsIsReportedAsFailed() {
+        NameLookup lookup =
+                lookup(
+                        name -> {
+                            throw new IllegalStateException("the service is down");
+                        });
         AtomicReference<NameLookup.Answer> answer = new AtomicReference<>();
         lookup.lookup("Steve", answer::set);
         assertEquals(NameLookup.Status.FAILED, answer.get().status());
@@ -200,7 +209,7 @@ class SpawnCommandsTest {
     void theServerStopsAskingMojangAfterItsShareOfTheLimit() {
         NameAndId profile = new NameAndId(UUID.randomUUID(), "Steve");
         NameLookup lookup = lookup(name -> found(profile));
-        for (int use = 0; use < 100; use++) {
+        for (int use = 0; use < 33; use++) {
             AtomicReference<NameLookup.Answer> answer = new AtomicReference<>();
             lookup.lookup("Steve", answer::set);
             assertEquals(NameLookup.Status.FOUND, answer.get().status(), "lookup " + use);
@@ -228,6 +237,46 @@ class SpawnCommandsTest {
     }
 
     /** A word that cannot be a player name is refused without spending a lookup. */
+    /**
+     * The repository reports an unknown name and a failed request differently, and the two must not
+     * be confused: a timeout must not tell the player that Mojang has no such account.
+     */
+    @Test
+    void anUnknownNameAndAFailedRequestAreToldApart() {
+        NameAndId profile = new NameAndId(UUID.randomUUID(), "Steve");
+        assertEquals(
+                new NameLookup.Answer(NameLookup.Status.FOUND, profile),
+                NameLookup.find(
+                        repository(
+                                callback -> callback.onProfileLookupSucceeded("Steve", profile.id())),
+                        "steve"));
+        assertEquals(
+                NameLookup.Status.NOT_FOUND,
+                NameLookup.find(
+                                repository(
+                                        callback ->
+                                                callback.onProfileLookupFailed(
+                                                        "steve",
+                                                        new ProfileNotFoundException("no such name"))),
+                                "steve")
+                        .status());
+        assertEquals(
+                NameLookup.Status.FAILED,
+                NameLookup.find(
+                                repository(
+                                        callback ->
+                                                callback.onProfileLookupFailed(
+                                                        "steve",
+                                                        new AuthenticationUnavailableException(
+                                                                "the service is down"))),
+                                "steve")
+                        .status());
+        assertEquals(
+                NameLookup.Status.FAILED,
+                NameLookup.find(repository(callback -> {}), "steve").status(),
+                "a repository that never calls back must not read as an unknown name");
+    }
+
     @Test
     void aNameThatCannotBelongToAnAccountNeverReachesTheRepository() {
         int[] calls = {0};
@@ -370,6 +419,22 @@ class SpawnCommandsTest {
     private static NameLookup lookup(NameLookup.Repository repository) {
         java.util.concurrent.Executor direct = Runnable::run;
         return new NameLookup(repository, direct, direct, () -> true);
+    }
+
+    /** A repository that runs {@code lookup} against the callback it is given. */
+    private static GameProfileRepository repository(Consumer<ProfileLookupCallback> lookup) {
+        return new GameProfileRepository() {
+            @Override
+            public void findProfilesByNames(String[] names, ProfileLookupCallback callback) {
+                lookup.accept(callback);
+            }
+
+            @Override
+            public Optional<com.mojang.authlib.services.response.NameAndId> findProfileByName(
+                    String name) {
+                throw new UnsupportedOperationException("the lookup must not use this");
+            }
+        };
     }
 
     private static NameLookup.Answer found(NameAndId profile) {
