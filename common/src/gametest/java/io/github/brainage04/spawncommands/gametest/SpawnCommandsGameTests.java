@@ -671,7 +671,11 @@ public final class SpawnCommandsGameTests {
             // A name the server has not cached goes to Mojang; the stub answers that it is unknown.
             NameLookup.install(
                     server,
-                    new NameLookup(name -> Optional.empty(), Runnable::run, server::execute));
+                    new NameLookup(
+                            name -> new NameLookup.Answer(NameLookup.Status.NOT_FOUND, null),
+                            Runnable::run,
+                            server::execute,
+                            server::isSameThread));
             helper.assertTrue(
                     share(owner.player(), "spawnshare SpawnNeverSeen") == 0,
                     "A name Mojang does not know must be refused");
@@ -1694,7 +1698,11 @@ public final class SpawnCommandsGameTests {
             // A name no player has used on this server goes to Mojang; the stub knows no such name.
             NameLookup.install(
                     server,
-                    new NameLookup(name -> Optional.empty(), Runnable::run, server::execute));
+                    new NameLookup(
+                            name -> new NameLookup.Answer(NameLookup.Status.NOT_FOUND, null),
+                            Runnable::run,
+                            server::execute,
+                            server::isSameThread));
             guest.clearMessages();
             helper.assertTrue(
                     execute(guestPlayer, "spawnof SpawnOffUnknown") == 0,
@@ -1785,9 +1793,12 @@ public final class SpawnCommandsGameTests {
         NameLookup.install(
                 server,
                 new NameLookup(
-                        name -> Optional.of(new NameAndId(profile)),
+                        name ->
+                                new NameLookup.Answer(
+                                        NameLookup.Status.FOUND, new NameAndId(profile)),
                         pending::set,
-                        server::execute));
+                        server::execute,
+                        server::isSameThread));
         SpawnAccessData access = SpawnAccessData.get(server);
         // Closed inside the final step, which runs after this method has returned.
         GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper");
@@ -1841,7 +1852,12 @@ public final class SpawnCommandsGameTests {
     public static void aNameMojangDoesNotKnowIsRefused(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         NameLookup.install(
-                server, new NameLookup(name -> Optional.empty(), Runnable::run, server::execute));
+                server,
+                new NameLookup(
+                        name -> new NameLookup.Answer(NameLookup.Status.NOT_FOUND, null),
+                        Runnable::run,
+                        server::execute,
+                        server::isSameThread));
         SpawnAccessData access = SpawnAccessData.get(server);
         try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
             ServerPlayer player = owner.player();
@@ -1871,11 +1887,10 @@ public final class SpawnCommandsGameTests {
         NameLookup.install(
                 server,
                 new NameLookup(
-                        name -> {
-                            throw new IllegalStateException("the profile service timed out");
-                        },
+                        name -> new NameLookup.Answer(NameLookup.Status.FAILED, null),
                         Runnable::run,
-                        server::execute));
+                        server::execute,
+                        server::isSameThread));
         SpawnAccessData access = SpawnAccessData.get(server);
         try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
             ServerPlayer player = owner.player();
@@ -1929,7 +1944,12 @@ public final class SpawnCommandsGameTests {
     public static void anAmbiguousRevokeListsEachGuestAndRevokesById(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         NameLookup.install(
-                server, new NameLookup(name -> Optional.empty(), Runnable::run, server::execute));
+                server,
+                new NameLookup(
+                        name -> new NameLookup.Answer(NameLookup.Status.NOT_FOUND, null),
+                        Runnable::run,
+                        server::execute,
+                        server::isSameThread));
         SpawnAccessData access = SpawnAccessData.get(server);
         UUID renamed = UUID.randomUUID();
         UUID holder = UUID.randomUUID();

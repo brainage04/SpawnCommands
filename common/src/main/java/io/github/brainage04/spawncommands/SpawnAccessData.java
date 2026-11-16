@@ -76,6 +76,11 @@ public final class SpawnAccessData extends SavedData {
         return owner.equals(guest) || shares.getOrDefault(owner, Set.of()).contains(guest);
     }
 
+    /** Whether any owner has shared their spawn with {@code guest}. */
+    public boolean anyOwnerAllows(UUID guest) {
+        return shares.values().stream().anyMatch(guests -> guests.contains(guest));
+    }
+
     public List<UUID> guests(UUID owner) {
         return List.copyOf(shares.getOrDefault(owner, Set.of()));
     }

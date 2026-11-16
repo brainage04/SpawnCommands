@@ -108,7 +108,15 @@ public final class SpawnCommandRegistration {
             return arrive(guest, List.copyOf(named));
         }
         String typed = typedArgument(context, "player");
-        List<NameAndId> known = named(server, typed);
+        // Online and cached matches together: an online player who never shared must not hide an
+        // offline one who did.
+        List<NameAndId> known = new ArrayList<>(named(server, typed));
+        for (NameAndId cached : ServerNameCache.known(server)) {
+            if (cached.name().equalsIgnoreCase(typed)
+                    && known.stream().noneMatch(seen -> seen.id().equals(cached.id()))) {
+                known.add(cached);
+            }
+        }
         if (!known.isEmpty()) return arrive(guest, known);
         UUID typedId = parseUuid(typed);
         if (typedId != null) {
@@ -125,6 +133,12 @@ public final class SpawnCommandRegistration {
                         source, "No player named '%s' has joined this server.", typed);
             }
             return arrive(guest, List.of(cached.get()));
+        }
+        // Nobody on this server has shared a spawn with this guest, so no name Mojang could answer
+        // would let them in: refuse without spending one of the server's lookups.
+        if (!SpawnAccessData.get(server).anyOwnerAllows(guest.getUUID())) {
+            return SpawnCommands.FEEDBACK.failure(
+                    source, "No player named '%s' has shared their spawn with you.", typed);
         }
         SpawnCommands.FEEDBACK.neutral(source, "Looking up %s...", typed);
         UUID guestId = guest.getUUID();
@@ -240,8 +254,7 @@ public final class SpawnCommandRegistration {
             return reportLookupFailure(source, typed, answer);
         }
         NameAndId profile = answer.profile();
-        // The cache is written on the server thread only
-        // (CachedUserNameToIdResolver.java:86-95 saves the file).
+        // add() also rewrites usercache.json (CachedUserNameToIdResolver.java:86-95).
         server.services().nameToIdCache().add(profile);
         return apply(source, owner, SpawnAccessData.get(server), true, List.of(profile));
     }
@@ -294,12 +307,7 @@ public final class SpawnCommandRegistration {
                     source, "No guest of your spawn is named '%s'.", typed);
         }
         if (matches.size() == 1) {
-            return apply(
-                    source,
-                    owner,
-                    access,
-                    false,
-                    List.of(new NameAndId(matches.getFirst(), typed)));
+            return report(source, access.revoke(ownerId, List.of(matches.getFirst())), false);
         }
         SpawnCommands.FEEDBACK.neutral(
                 source,
