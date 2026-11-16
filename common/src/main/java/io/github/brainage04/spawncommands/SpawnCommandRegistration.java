@@ -11,6 +11,7 @@ import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import io.github.brainage04.brainagelib.help.HelpPage;
 import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import net.minecraft.commands.CommandSourceStack;
@@ -33,7 +34,7 @@ public final class SpawnCommandRegistration {
         dispatcher.register(
                 literal("spawnof")
                         .then(
-                                argument("player", EntityArgument.player())
+                                argument("player", GameProfileArgument.gameProfile())
                                         .executes(
                                                 SpawnCommandRegistration::teleportToSharedSpawn)));
         dispatcher.register(
@@ -82,12 +83,53 @@ public final class SpawnCommandRegistration {
         CommandSourceStack source = context.getSource();
         ServerPlayer guest = SpawnCommands.FEEDBACK.requirePlayer(source);
         if (guest == null) return 0;
-        ServerPlayer owner = EntityArgument.getPlayer(context, "player");
-        if (!SpawnAccessData.get(source.getServer()).allows(owner.getUUID(), guest.getUUID())) {
+        NameAndId owner = sharedSpawnOwner(context);
+        if (owner == null) return 0;
+        if (!SpawnAccessData.get(source.getServer()).allows(owner.id(), guest.getUUID())) {
             return SpawnCommands.FEEDBACK.failure(
-                    source, "%s has not shared their spawn with you.", owner.getScoreboardName());
+                    source, "%s has not shared their spawn with you.", owner.name());
         }
-        return SpawnTeleportService.teleportToPersonalSpawn(guest, owner);
+        ServerPlayer onlineOwner = source.getServer().getPlayerList().getPlayer(owner.id());
+        if (onlineOwner != null) {
+            return SpawnTeleportService.teleportToPersonalSpawn(guest, onlineOwner);
+        }
+        return SpawnTeleportService.teleportToPersonalSpawn(
+                guest, owner, OfflineSpawn.respawnConfig(source.getServer(), owner).orElse(null));
+    }
+
+    /**
+     * The player a guest named with {@code /spawnof}: a selector's single online player, or the
+     * server name cache's single entry for a typed name, which may belong to an offline player.
+     * Returns null after reporting a name nobody on this server has used.
+     */
+    private static NameAndId sharedSpawnOwner(CommandContext<CommandSourceStack> context)
+            throws CommandSyntaxException {
+        CommandSourceStack source = context.getSource();
+        if (context.getArgument("player", GameProfileArgument.Result.class)
+                instanceof GameProfileArgument.SelectorResult selector) {
+            // EntityArgument.player() refused a selector matching several players while it parsed
+            // (EntityArgument.java:115-120); GameProfileArgument accepts any selector, so the same
+            // refusal is made here. No match already throws NO_PLAYERS_FOUND
+            // (GameProfileArgument.java:100-103), as EntityArgument.player() answered.
+            Collection<NameAndId> named = selector.getNames(source);
+            if (named.size() > 1) throw EntityArgument.ERROR_NOT_SINGLE_PLAYER.create();
+            return named.iterator().next();
+        }
+        // GameProfileArgument resolves a typed name through the name cache, and for one it has not
+        // cached that asks Mojang's profile service on the server thread and writes the answer to
+        // usercache.json (GameProfileArgument.java:63-66, CachedUserNameToIdResolver.java:63-69,
+        // 118-120). A name this server has never seen must be refused instead, as /spawnshare does.
+        String typed = typedArgument(context, "player");
+        List<NameAndId> known =
+                ServerNameCache.known(source.getServer()).stream()
+                        .filter(candidate -> candidate.name().equalsIgnoreCase(typed))
+                        .toList();
+        if (known.isEmpty()) {
+            SpawnCommands.FEEDBACK.failure(
+                    source, "No player named '%s' has joined this server.", typed);
+            return null;
+        }
+        return known.getFirst();
     }
 
     private static int changeAccess(CommandContext<CommandSourceStack> context, boolean grant)

@@ -12,6 +12,7 @@
 	"license": "MIT",
 	"icon": "assets/spawncommands/icon.png",
 	"environment": "*",
+	"accessWidener": "spawncommands.accesswidener",
 	"entrypoints": {
 		"main": ["io.github.brainage04.spawncommands.fabric.SpawnCommandsFabric"]
 	},

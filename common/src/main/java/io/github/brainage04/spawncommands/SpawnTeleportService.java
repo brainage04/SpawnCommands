@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
@@ -14,6 +15,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.TicketType;
+import net.minecraft.server.players.NameAndId;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.tags.FluidTags;
@@ -31,7 +33,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.SpeleothemThickness;
 import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.material.FluidState;
-import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -294,51 +295,66 @@ public final class SpawnTeleportService {
     }
 
     public static int teleportToPersonalSpawn(ServerPlayer player, ServerPlayer spawnOwner) {
-        ServerPlayer.RespawnConfig config = spawnOwner.getRespawnConfig();
+        return teleportToRespawnConfig(
+                player,
+                spawnOwner.getScoreboardName(),
+                spawnOwner == player,
+                spawnOwner.getRespawnConfig());
+    }
+
+    /**
+     * Teleports {@code player} to a spawn point saved in someone's player data, for an owner who is
+     * offline. A null {@code config} is the owner having no personal spawn point.
+     */
+    public static int teleportToPersonalSpawn(
+            ServerPlayer player, NameAndId spawnOwner, ServerPlayer.RespawnConfig config) {
+        return teleportToRespawnConfig(player, spawnOwner.name(), false, config);
+    }
+
+    private static int teleportToRespawnConfig(
+            ServerPlayer player,
+            String ownerName,
+            boolean ownSpawn,
+            ServerPlayer.RespawnConfig config) {
         if (config == null) {
-            if (spawnOwner == player) {
+            if (ownSpawn) {
                 SpawnCommands.FEEDBACK.error(player, "You do not have a personal spawn point.");
             } else {
                 SpawnCommands.FEEDBACK.error(
-                        player,
-                        "%s does not have a personal spawn point.",
-                        spawnOwner.getScoreboardName());
+                        player, "%s does not have a personal spawn point.", ownerName);
             }
             return 0;
         }
-        if (player.level().getServer().getLevel(config.respawnData().dimension()) == null) {
+        ServerLevel respawnLevel =
+                player.level().getServer().getLevel(config.respawnData().dimension());
+        if (respawnLevel == null) {
             SpawnCommands.FEEDBACK.error(player, "That personal spawn dimension is unavailable.");
             return 0;
         }
-
         // Resolve like a vanilla respawn (bed/anchor stand-up position, exact forced position)
-        // without using an anchor charge. The world-spawn spread driven by the respawn radius
-        // gamerule never applies here.
-        TeleportTransition respawn =
-                spawnOwner.findRespawnPositionAndUseSpawnBlock(
-                        false, TeleportTransition.DO_NOTHING);
-        if (respawn.missingRespawnBlock()) {
-            if (spawnOwner == player) {
+        // without using an anchor charge: the same call a respawn makes, with consumeSpawnBlock
+        // false (ServerPlayer.java:1022-1035, 1095-1127). The world-spawn spread driven by the
+        // respawn radius gamerule never applies here.
+        Optional<ServerPlayer.RespawnPosAngle> respawn =
+                ServerPlayer.findRespawnAndUseSpawnBlock(respawnLevel, config, false);
+        if (respawn.isEmpty()) {
+            if (ownSpawn) {
                 SpawnCommands.FEEDBACK.error(
                         player, "Your personal spawn point is missing or obstructed.");
             } else {
                 SpawnCommands.FEEDBACK.error(
-                        player,
-                        "%s's spawn point is missing or obstructed.",
-                        spawnOwner.getScoreboardName());
+                        player, "%s's spawn point is missing or obstructed.", ownerName);
             }
             return 0;
         }
-        String label =
-                spawnOwner == player
-                        ? "your personal spawn"
-                        : spawnOwner.getScoreboardName() + "'s spawn";
+        ServerPlayer.RespawnPosAngle arrival = respawn.get();
+        String label = ownSpawn ? "your personal spawn" : ownerName + "'s spawn";
         return teleport(
                 player,
-                respawn.newLevel(),
-                respawn.position(),
-                respawn.yRot(),
-                respawn.xRot(),
+                respawnLevel,
+                arrival.position(),
+                arrival.yaw(),
+                arrival.pitch(),
                 label);
     }
 

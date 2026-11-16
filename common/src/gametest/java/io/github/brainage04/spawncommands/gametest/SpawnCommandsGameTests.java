@@ -1520,6 +1520,216 @@ public final class SpawnCommandsGameTests {
                 .thenSucceed();
     }
 
+    public static void anOfflineOwnersSpawnIsReachable(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerLevel level = helper.getLevel();
+        for (int x = 0; x < 5; x++) {
+            for (int z = 0; z < 5; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
+            }
+        }
+        BlockPos foot = new BlockPos(2, 1, 1);
+        BlockPos head = new BlockPos(2, 1, 2);
+        helper.setBlock(foot, bed(BedPart.FOOT));
+        helper.setBlock(head, bed(BedPart.HEAD));
+        BlockPos bed = helper.absolutePos(head);
+        float yaw = 30.0F;
+        Vec3 expected =
+                BedBlock.findStandUpPosition(
+                                EntityTypes.PLAYER, level, bed, Direction.SOUTH, yaw)
+                        .orElseThrow(
+                                () ->
+                                        new AssertionError(
+                                                "The test bed must have a stand-up position"));
+        try (GameTestPlayer guest = GameTestPlayer.join(helper, "SpawnOffGuest")) {
+            UUID ownerId;
+            try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnOffKeeper")) {
+                ServerPlayer ownerPlayer = owner.player();
+                ownerId = ownerPlayer.getUUID();
+                ownerPlayer.setRespawnPosition(
+                        new ServerPlayer.RespawnConfig(
+                                LevelData.RespawnData.of(level.dimension(), bed, yaw, 0.0F), false),
+                        false);
+                helper.assertTrue(
+                        execute(ownerPlayer, "spawnshare SpawnOffGuest") == 1,
+                        "Sharing with the guest must work");
+            }
+            helper.assertTrue(
+                    server.getPlayerList().getPlayer(ownerId) == null,
+                    "The owner must be offline for this test");
+            ServerPlayer guestPlayer = guest.player();
+            guestPlayer.teleportTo(expected.x() + 20.0D, expected.y(), expected.z() + 20.0D);
+            guest.clearMessages();
+            helper.assertTrue(
+                    execute(guestPlayer, "spawnof SpawnOffKeeper") == 1,
+                    "/spawnof must reach an offline owner's spawn");
+            helper.assertTrue(
+                    guestPlayer.position().equals(expected),
+                    "/spawnof must land on the offline owner's bed at "
+                            + expected
+                            + " but landed on "
+                            + guestPlayer.position());
+            helper.assertTrue(
+                    guest.received("[SpawnCommands] Teleported to SpawnOffKeeper's spawn."),
+                    "The arrival must be reported, got " + guest.messageTexts());
+        }
+        helper.succeed();
+    }
+
+    public static void offlineOwnerSpawnRefusalsMatchOnlineOnes(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerLevel level = helper.getLevel();
+        for (int x = 0; x < 5; x++) {
+            for (int z = 0; z < 5; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
+            }
+        }
+        helper.setBlock(new BlockPos(2, 1, 1), bed(BedPart.FOOT));
+        helper.setBlock(new BlockPos(2, 1, 2), bed(BedPart.HEAD));
+        BlockPos bed = helper.absolutePos(new BlockPos(2, 1, 2));
+        try (GameTestPlayer guest = GameTestPlayer.join(helper, "SpawnOffDenied")) {
+            ServerPlayer guestPlayer = guest.player();
+            // A bed the owner slept in that is gone by the time the guest arrives.
+            try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnOffBed")) {
+                owner.player()
+                        .setRespawnPosition(
+                                new ServerPlayer.RespawnConfig(
+                                        LevelData.RespawnData.of(
+                                                level.dimension(), bed, 0.0F, 0.0F),
+                                        false),
+                                false);
+                helper.assertTrue(
+                        execute(owner.player(), "spawnshare SpawnOffDenied") == 1,
+                        "Sharing with the guest must work");
+            }
+            helper.setBlock(new BlockPos(2, 1, 1), Blocks.AIR);
+            helper.setBlock(new BlockPos(2, 1, 2), Blocks.AIR);
+            Vec3 before = guestPlayer.position();
+            guest.clearMessages();
+            helper.assertTrue(
+                    execute(guestPlayer, "spawnof SpawnOffBed") == 0,
+                    "A broken bed of an offline owner must be refused");
+            assertMessage(
+                    helper,
+                    guest,
+                    "[SpawnCommands] SpawnOffBed's spawn point is missing or obstructed.",
+                    0xFF5555);
+            helper.assertTrue(
+                    guestPlayer.position().equals(before), "A refusal must not move the guest");
+
+            // An owner who never set a spawn.
+            try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnOffNoSpawn")) {
+                helper.assertTrue(
+                        execute(owner.player(), "spawnshare SpawnOffDenied") == 1,
+                        "Sharing with the guest must work");
+            }
+            guest.clearMessages();
+            helper.assertTrue(
+                    execute(guestPlayer, "spawnof SpawnOffNoSpawn") == 0,
+                    "An offline owner without a personal spawn must be refused");
+            assertMessage(
+                    helper,
+                    guest,
+                    "[SpawnCommands] SpawnOffNoSpawn does not have a personal spawn point.",
+                    0xFF5555);
+
+            // An offline owner who never shared with this guest.
+            try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnOffUnshared")) {
+                owner.player()
+                        .setRespawnPosition(
+                                new ServerPlayer.RespawnConfig(
+                                        LevelData.RespawnData.of(
+                                                level.dimension(), bed, 0.0F, 0.0F),
+                                        true),
+                                false);
+            }
+            guest.clearMessages();
+            helper.assertTrue(
+                    execute(guestPlayer, "spawnof SpawnOffUnshared") == 0,
+                    "An offline owner who never shared must be refused");
+            assertMessage(
+                    helper,
+                    guest,
+                    "[SpawnCommands] SpawnOffUnshared has not shared their spawn with you.",
+                    0xFF5555);
+
+            // A name no player has used on this server.
+            guest.clearMessages();
+            helper.assertTrue(
+                    execute(guestPlayer, "spawnof SpawnOffUnknown") == 0,
+                    "A name the server has never seen must be refused");
+            assertMessage(
+                    helper,
+                    guest,
+                    "[SpawnCommands] No player named 'SpawnOffUnknown' has joined this"
+                            + " server.",
+                    0xFF5555);
+            helper.assertTrue(
+                    server.getPlayerList().getPlayer(guestPlayer.getUUID()) == guestPlayer,
+                    "Refusals must leave the guest on the player list");
+        }
+        helper.succeed();
+    }
+
+    public static void anOfflineOwnersSpawnInAnotherDimensionIsReachable(
+            GameTestHelper helper) {
+        ServerLevel nether =
+                helper.getLevel().getServer().getLevel(net.minecraft.world.level.Level.NETHER);
+        helper.assertTrue(nether != null, "The Nether must be available");
+        BlockPos origin = helper.absolutePos(new BlockPos(2, 2, 2));
+        BlockPos spawn = new BlockPos(origin.getX(), 80, origin.getZ());
+        Map<BlockPos, BlockState> previous = new HashMap<>();
+        for (BlockPos pos :
+                BlockPos.betweenClosed(spawn.offset(-2, -2, -2), spawn.offset(2, 1, 2))) {
+            BlockPos saved = pos.immutable();
+            previous.put(saved, nether.getBlockState(saved));
+        }
+        try (GameTestPlayer guest = GameTestPlayer.join(helper, "SpawnOffNGuest")) {
+            UUID ownerId;
+            try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnOffNOwner")) {
+                ServerPlayer ownerPlayer = owner.player();
+                ownerId = ownerPlayer.getUUID();
+                previous.keySet()
+                        .forEach(
+                                pos ->
+                                        nether.setBlockAndUpdate(
+                                                pos,
+                                                pos.getY() == spawn.getY() - 1
+                                                        ? Blocks.STONE.defaultBlockState()
+                                                        : Blocks.AIR.defaultBlockState()));
+                ownerPlayer.setRespawnPosition(
+                        new ServerPlayer.RespawnConfig(
+                                LevelData.RespawnData.of(
+                                        nether.dimension(), spawn, 35.0F, 0.0F),
+                                true),
+                        false);
+                helper.assertTrue(
+                        execute(ownerPlayer, "spawnshare SpawnOffNGuest") == 1,
+                        "Sharing with the guest must work");
+            }
+            helper.assertTrue(
+                    helper.getLevel().getServer().getPlayerList().getPlayer(ownerId) == null,
+                    "The owner must be offline for this test");
+            Vec3 expected =
+                    new Vec3(spawn.getX() + 0.5D, spawn.getY() + 0.1D, spawn.getZ() + 0.5D);
+            helper.assertTrue(
+                    execute(guest.player(), "spawnof SpawnOffNOwner") == 1,
+                    "/spawnof must reach an offline owner's spawn in another dimension");
+            helper.assertTrue(
+                    guest.player().level() == nether
+                            && guest.player().position().equals(expected),
+                    "The guest must reach the Nether spawn: expected "
+                            + expected
+                            + " in the Nether, landed on "
+                            + guest.player().position()
+                            + " in "
+                            + guest.player().level().dimension().identifier());
+        } finally {
+            previous.forEach(nether::setBlockAndUpdate);
+        }
+        helper.succeed();
+    }
+
     private static List<String> suggestions(ServerPlayer player, String input) {
         var dispatcher = player.level().getServer().getCommands().getDispatcher();
         var parse = dispatcher.parse(input, player.createCommandSourceStack());

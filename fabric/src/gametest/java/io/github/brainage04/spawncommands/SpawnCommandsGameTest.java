@@ -61,6 +61,21 @@ public final class SpawnCommandsGameTest {
     }
 
     @GameTest
+    public void anOfflineOwnersSpawnIsReachable(GameTestHelper helper) {
+        SpawnCommandsGameTests.anOfflineOwnersSpawnIsReachable(helper);
+    }
+
+    @GameTest
+    public void offlineOwnerSpawnRefusalsMatchOnlineOnes(GameTestHelper helper) {
+        SpawnCommandsGameTests.offlineOwnerSpawnRefusalsMatchOnlineOnes(helper);
+    }
+
+    @GameTest
+    public void anOfflineOwnersSpawnInAnotherDimensionIsReachable(GameTestHelper helper) {
+        SpawnCommandsGameTests.anOfflineOwnersSpawnInAnotherDimensionIsReachable(helper);
+    }
+
+    @GameTest
     public void ownersRevokeGuestsWhoAreOffline(GameTestHelper helper) {
         SpawnCommandsGameTests.ownersRevokeGuestsWhoAreOffline(helper);
     }

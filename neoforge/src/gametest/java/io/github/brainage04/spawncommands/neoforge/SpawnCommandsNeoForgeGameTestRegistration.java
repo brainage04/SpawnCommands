@@ -139,6 +139,18 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 SpawnTicketGameTests::aSpotOverTwoChunksLoadsBothAgainWhenAnotherModTakesOne);
         register(
                 event,
+                "an_offline_owners_spawn_is_reachable",
+                SpawnCommandsGameTests::anOfflineOwnersSpawnIsReachable);
+        register(
+                event,
+                "offline_owner_spawn_refusals_match_online_ones",
+                SpawnCommandsGameTests::offlineOwnerSpawnRefusalsMatchOnlineOnes);
+        register(
+                event,
+                "an_offline_owners_spawn_in_another_dimension_is_reachable",
+                SpawnCommandsGameTests::anOfflineOwnersSpawnInAnotherDimensionIsReachable);
+        register(
+                event,
                 "owners_revoke_guests_who_are_offline",
                 SpawnCommandsGameTests::ownersRevokeGuestsWhoAreOffline);
         register(
