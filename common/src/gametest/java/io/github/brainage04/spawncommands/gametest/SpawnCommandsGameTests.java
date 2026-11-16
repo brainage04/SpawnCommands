@@ -1693,6 +1693,32 @@ public final class SpawnCommandsGameTests {
         helper.succeed();
     }
 
+    public static void spawnofAcceptsASelfSelector(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos spawn = helper.absolutePos(new BlockPos(3, 2, 3));
+        try (GameTestPlayer player = GameTestPlayer.join(helper, "SpawnOffSelf")) {
+            ServerPlayer self = player.player();
+            self.setRespawnPosition(
+                    new ServerPlayer.RespawnConfig(
+                            LevelData.RespawnData.of(level.dimension(), spawn, 0.0F, 0.0F),
+                            true),
+                    false);
+            Vec3 expected = new Vec3(spawn.getX() + 0.5D, spawn.getY() + 0.1D, spawn.getZ() + 0.5D);
+            self.teleportTo(expected.x() + 20.0D, expected.y(), expected.z() + 20.0D);
+            helper.assertTrue(
+                    execute(withServerPermissions(self), "spawnof @s") == 1,
+                    "/spawnof @s must reach your own spawn, as EntityArgument.player() allowed"
+                            + " (EntityArgument.java:118-120)");
+            helper.assertTrue(
+                    self.position().equals(expected),
+                    "/spawnof @s must land on your own spawn at "
+                            + expected
+                            + " but landed on "
+                            + self.position());
+        }
+        helper.succeed();
+    }
+
     public static void spawnofResolvesAUuidAndRefusesASelectorNamingTwoPlayers(
             GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();

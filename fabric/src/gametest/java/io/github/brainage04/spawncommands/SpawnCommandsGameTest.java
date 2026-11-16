@@ -76,6 +76,11 @@ public final class SpawnCommandsGameTest {
     }
 
     @GameTest
+    public void spawnofAcceptsASelfSelector(GameTestHelper helper) {
+        SpawnCommandsGameTests.spawnofAcceptsASelfSelector(helper);
+    }
+
+    @GameTest
     public void anOfflineOwnersSpawnInAnotherDimensionIsReachable(GameTestHelper helper) {
         SpawnCommandsGameTests.anOfflineOwnersSpawnInAnotherDimensionIsReachable(helper);
     }
