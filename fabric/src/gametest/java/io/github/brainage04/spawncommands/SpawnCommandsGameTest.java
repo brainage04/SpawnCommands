@@ -237,4 +237,19 @@ public final class SpawnCommandsGameTest {
     public void aRevokeOfAReusedNameRevokesNothing(GameTestHelper helper) {
         SpawnCommandsGameTests.aRevokeOfAReusedNameRevokesNothing(helper);
     }
+
+    @GameTest
+    public void anAmbiguousGrantListsEachAccountAndGrantsById(GameTestHelper helper) {
+        SpawnCommandsGameTests.anAmbiguousGrantListsEachAccountAndGrantsById(helper);
+    }
+
+    @GameTest
+    public void aSingleRevokeNamesTheAccountItRevoked(GameTestHelper helper) {
+        SpawnCommandsGameTests.aSingleRevokeNamesTheAccountItRevoked(helper);
+    }
+
+    @GameTest
+    public void aJoinRecordsTheNameAndTheTime(GameTestHelper helper) {
+        SpawnCommandsGameTests.aJoinRecordsTheNameAndTheTime(helper);
+    }
 }

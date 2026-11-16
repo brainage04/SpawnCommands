@@ -4,6 +4,7 @@ import io.github.brainage04.spawncommands.SpawnCommandRegistration;
 import io.github.brainage04.spawncommands.SpawnCommands;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 
 public final class SpawnCommandsFabric implements ModInitializer {
     @Override
@@ -12,5 +13,6 @@ public final class SpawnCommandsFabric implements ModInitializer {
         CommandRegistrationCallback.EVENT.register(
                 (dispatcher, registryAccess, environment) ->
                         SpawnCommandRegistration.register(dispatcher));
+        ServerPlayerEvents.JOIN.register(SpawnCommands::playerJoined);
     }
 }

@@ -232,7 +232,8 @@ public final class SpawnCommandRegistration {
     /**
      * Grants to the player a typed name belongs to. A name the server has cached is answered at
      * once; any other name is looked up off the server thread and the grant finishes when the
-     * answer arrives.
+     * answer arrives. A name several accounts hold grants nothing and lists them, because one
+     * command must not hand access to an account the owner did not identify.
      */
     private static int grantTyped(
             MinecraftServer server,
@@ -241,6 +242,27 @@ public final class SpawnCommandRegistration {
             SpawnAccessData access,
             String typed) {
         List<NameAndId> matches = named(server, typed, ServerNameCache.known(server));
+        if (matches.size() > 1) {
+            return listCandidates(
+                    server,
+                    source,
+                    owner,
+                    Component.literal(
+                            matches.size()
+                                    + " players have been called '"
+                                    + typed
+                                    + "'. Choose the one to share with:"),
+                    matches.stream()
+                            .map(
+                                    match ->
+                                            candidateLine(
+                                                    access,
+                                                    match.id(),
+                                                    match.name(),
+                                                    "Share",
+                                                    "/spawnshare " + match.id()))
+                            .toList());
+        }
         if (!matches.isEmpty()) {
             if (!charged(server, source, owner)) return 0;
             return apply(source, owner, access, true, matches);
@@ -248,6 +270,12 @@ public final class SpawnCommandRegistration {
         UUID id = parseUuid(typed);
         if (id != null) {
             List<NameAndId> cached = List.copyOf(cachedNames(server, List.of(id)));
+            if (cached.isEmpty()) {
+                // The [Share] button names an account by id, and the cache entry can have expired
+                // while the history the list was built from still holds the name.
+                List<SpawnAccessData.SeenName> seen = access.names(id);
+                if (!seen.isEmpty()) cached = List.of(new NameAndId(id, seen.getFirst().name()));
+            }
             if (!cached.isEmpty()) {
                 if (!charged(server, source, owner)) return 0;
                 return apply(source, owner, access, true, cached);
@@ -334,7 +362,7 @@ public final class SpawnCommandRegistration {
                         source, "That player does not have access to your spawn.");
             }
             if (!charged(server, source, owner)) return 0;
-            return report(source, access.revoke(ownerId, List.of(id)), false);
+            return revokeOne(server, source, owner, access, id);
         }
         List<UUID> matches = new ArrayList<>(access.guestsNamed(ownerId, typed));
         for (NameAndId cached : cachedNames(server, access.guests(ownerId))) {
@@ -355,20 +383,27 @@ public final class SpawnCommandRegistration {
                         matches.getFirst());
             }
             if (!charged(server, source, owner)) return 0;
-            return report(source, access.revoke(ownerId, List.of(matches.getFirst())), false);
+            return revokeOne(server, source, owner, access, matches.getFirst());
         }
-        long wait = ShareRateLimit.listing(server).refuse(owner.getUUID());
-        if (wait > 0) {
-            return SpawnCommands.FEEDBACK.failure(
-                    source, "You can ask for the list again in %s.", ShareRateLimit.describe(wait));
-        }
-        SpawnCommands.FEEDBACK.neutral(
+        return listCandidates(
+                server,
                 source,
-                "%d guests of your spawn have been called '%s'. Choose the one to revoke:",
-                matches.size(),
-                typed);
-        for (UUID guest : matches) owner.sendSystemMessage(describe(access, guest));
-        return 0;
+                owner,
+                Component.literal(
+                        matches.size()
+                                + " guests of your spawn have been called '"
+                                + typed
+                                + "'. Choose the one to revoke:"),
+                matches.stream()
+                        .map(
+                                guest ->
+                                        candidateLine(
+                                                access,
+                                                guest,
+                                                displayName(server, access, guest),
+                                                "Revoke",
+                                                "/spawnshare revoke " + guest))
+                        .toList());
     }
 
     /**
@@ -416,7 +451,7 @@ public final class SpawnCommandRegistration {
             }
             // add() also rewrites usercache.json (CachedUserNameToIdResolver.java:86-95).
             server.services().nameToIdCache().add(profile);
-            return report(source, access.revoke(ownerId, List.of(profile.id())), false);
+            return revokeOne(server, source, owner, access, profile.id());
         }
         if (answer.status() != NameLookup.Status.NOT_FOUND) {
             return reportLookupFailure(server, owner, typed, answer);
@@ -425,15 +460,18 @@ public final class SpawnCommandRegistration {
                 source, "No guest of your spawn is named '%s'.", typed);
     }
 
-    /** One line of the ambiguous revoke list: the guest, its other names, and a revoke button. */
-    private static Component describe(SpawnAccessData access, UUID guest) {
-        List<SpawnAccessData.SeenName> seen = access.names(guest);
-        String current = seen.isEmpty() ? guest.toString() : seen.getFirst().name();
-        MutableComponent line = Component.literal(" " + current).withStyle(ChatFormatting.WHITE);
+    /**
+     * The account's current name, its other names and when it was last seen. The name the caller
+     * matched on is the current one; the history supplies the rest.
+     */
+    private static MutableComponent accountLine(
+            SpawnAccessData access, UUID id, String currentName) {
+        List<SpawnAccessData.SeenName> seen = access.names(id);
+        MutableComponent line = Component.literal(" " + currentName).withStyle(ChatFormatting.WHITE);
         List<String> previous =
                 seen.stream()
                         .map(SpawnAccessData.SeenName::name)
-                        .filter(name -> !name.equalsIgnoreCase(current))
+                        .filter(name -> !name.equalsIgnoreCase(currentName))
                         .toList();
         if (!previous.isEmpty()) {
             line.append(
@@ -449,15 +487,69 @@ public final class SpawnCommandRegistration {
                                                             seen.getFirst().lastSeen())))
                             .withStyle(ChatFormatting.GRAY));
         }
-        line.append(
-                Component.literal(" [Revoke]")
-                        .withStyle(
-                                style ->
-                                        style.withColor(ChatFormatting.GREEN)
-                                                .withClickEvent(
-                                                        new ClickEvent.RunCommand(
-                                                                "/spawnshare revoke " + guest))));
         return line;
+    }
+
+    /** One line of a candidate list: the account, its other names, and a button naming its id. */
+    private static Component candidateLine(
+            SpawnAccessData access, UUID id, String currentName, String label, String command) {
+        return accountLine(access, id, currentName)
+                .append(
+                        Component.literal(" [" + label + "]")
+                                .withStyle(
+                                        style ->
+                                                style.withColor(ChatFormatting.GREEN)
+                                                        .withClickEvent(
+                                                                new ClickEvent.RunCommand(
+                                                                        command))));
+    }
+
+    /**
+     * Prints the accounts a typed name could mean and changes nothing. The list has its own
+     * allowance, so the button it prints stays affordable in the same second.
+     */
+    private static int listCandidates(
+            MinecraftServer server,
+            CommandSourceStack source,
+            ServerPlayer owner,
+            Component header,
+            List<Component> lines) {
+        long wait = ShareRateLimit.listing(server).refuse(owner.getUUID());
+        if (wait > 0) {
+            return SpawnCommands.FEEDBACK.failure(
+                    source, "You can ask for the list again in %s.", ShareRateLimit.describe(wait));
+        }
+        SpawnCommands.FEEDBACK.neutral(source, header);
+        for (Component line : lines) owner.sendSystemMessage(line);
+        return 0;
+    }
+
+    /**
+     * Revokes one guest and names the account, so the owner sees who lost access. The line is built
+     * before the revoke, which drops the history of a guest no owner shares with any more.
+     */
+    private static int revokeOne(
+            MinecraftServer server,
+            CommandSourceStack source,
+            ServerPlayer owner,
+            SpawnAccessData access,
+            UUID guest) {
+        Component line = accountLine(access, guest, displayName(server, access, guest));
+        int changed = access.revoke(owner.getUUID(), List.of(guest));
+        int outcome = report(source, changed, false);
+        if (changed > 0) owner.sendSystemMessage(line);
+        return outcome;
+    }
+
+    /** The name to show for an account: its newest history entry, else its cached name. */
+    private static String displayName(
+            MinecraftServer server, SpawnAccessData access, UUID id) {
+        List<SpawnAccessData.SeenName> seen = access.names(id);
+        if (!seen.isEmpty()) return seen.getFirst().name();
+        return cachedNames(server, List.of(id)).stream()
+                .map(NameAndId::name)
+                .findFirst()
+                .orElse(id.toString());
     }
 
     private static int apply(

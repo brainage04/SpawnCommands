@@ -197,6 +197,18 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 event,
                 "a_revoke_of_a_reused_name_revokes_nothing",
                 SpawnCommandsGameTests::aRevokeOfAReusedNameRevokesNothing);
+        register(
+                event,
+                "an_ambiguous_grant_lists_each_account_and_grants_by_id",
+                SpawnCommandsGameTests::anAmbiguousGrantListsEachAccountAndGrantsById);
+        register(
+                event,
+                "a_single_revoke_names_the_account_it_revoked",
+                SpawnCommandsGameTests::aSingleRevokeNamesTheAccountItRevoked);
+        register(
+                event,
+                "a_join_records_the_name_and_the_time",
+                SpawnCommandsGameTests::aJoinRecordsTheNameAndTheTime);
     }
 
     private static void register(

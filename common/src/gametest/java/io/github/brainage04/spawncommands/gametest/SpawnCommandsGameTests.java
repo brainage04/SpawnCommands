@@ -2223,6 +2223,149 @@ public final class SpawnCommandsGameTests {
         helper.succeed();
     }
 
+    /**
+     * A grant by a name two cached accounts hold grants neither and lists both with a button that
+     * names the account's id, so one command never hands access to an account the owner did not
+     * identify.
+     */
+    public static void anAmbiguousGrantListsEachAccountAndGrantsById(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        SpawnAccessData access = SpawnAccessData.get(server);
+        UUID renamed = UUID.randomUUID();
+        UUID holder = UUID.randomUUID();
+        try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
+            ServerPlayer player = owner.player();
+            long now = System.currentTimeMillis();
+            access.sawName(renamed, "SpawnFirst", now - 86_400_000L);
+            access.sawName(renamed, "SpawnBoth", now);
+            access.sawName(holder, "SpawnBoth", now);
+            // Written after the join, which saves the cache from memory and would drop these.
+            writeCache(server, Map.of(renamed, "SpawnBoth", holder, "SpawnBoth"));
+            owner.clearMessages();
+            helper.assertTrue(
+                    share(player, "spawnshare SpawnBoth") == 0,
+                    "An ambiguous grant must grant nothing");
+            helper.assertTrue(
+                    access.guests(player.getUUID()).isEmpty(),
+                    "Neither account may be granted by an ambiguous name, got "
+                            + access.guests(player.getUUID()));
+            List<Component> messages = owner.messages();
+            helper.assertTrue(
+                    messages.getFirst()
+                            .getString()
+                            .equals(
+                                    "[SpawnCommands] 2 players have been called 'SpawnBoth'."
+                                            + " Choose the one to share with:"),
+                    "The list must say why nothing was granted, got " + owner.messageTexts());
+            List<String> lines = new ArrayList<>();
+            List<String> clicks = new ArrayList<>();
+            for (Component line : messages.subList(1, messages.size())) {
+                lines.add(line.getString());
+                line.visit(
+                        (style, segment) -> {
+                            if (segment.trim().equals("[Share]")
+                                    && style.getClickEvent()
+                                            instanceof ClickEvent.RunCommand(String command)) {
+                                clicks.add(command);
+                            }
+                            return Optional.empty();
+                        },
+                        Style.EMPTY);
+            }
+            helper.assertTrue(
+                    lines.size() == 2
+                            && lines.stream()
+                                    .anyMatch(
+                                            line ->
+                                                    line.contains("SpawnBoth")
+                                                            && line.contains("previous name SpawnFirst")),
+                    "Each match must list its other names, got " + lines);
+            helper.assertTrue(
+                    clicks.size() == 2
+                            && clicks.containsAll(
+                                    List.of(
+                                            "/spawnshare " + renamed,
+                                            "/spawnshare " + holder)),
+                    "Each match must carry a share button for its own id, got " + clicks);
+            // The click runs in the same second as the list, through execute() rather than share(),
+            // so the allowance the list would have spent is the point of the step.
+            helper.assertTrue(
+                    execute(player, "spawnshare " + renamed) == 1,
+                    "A clicked share must grant the account whose id it names, and the list may not"
+                            + " spend the allowance the click needs, got "
+                            + owner.messageTexts());
+            helper.assertTrue(
+                    access.guests(player.getUUID()).equals(List.of(renamed)),
+                    "Only the clicked account may be granted, got "
+                            + access.guests(player.getUUID()));
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A revoke that matches one guest names the account it revoked, with its other names and when
+     * it was last seen, so access never disappears from an account the owner never saw identified.
+     */
+    public static void aSingleRevokeNamesTheAccountItRevoked(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        SpawnAccessData access = SpawnAccessData.get(server);
+        UUID guest = UUID.randomUUID();
+        try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
+            ServerPlayer player = owner.player();
+            access.grant(player.getUUID(), List.of(guest));
+            long now = System.currentTimeMillis();
+            access.sawName(guest, "SpawnFirst", now - 86_400_000L);
+            access.sawName(guest, "SpawnBoth", now);
+            owner.clearMessages();
+            helper.assertTrue(
+                    share(player, "spawnshare revoke SpawnBoth") == 1,
+                    "A single match must revoke the guest");
+            helper.assertTrue(
+                    access.guests(player.getUUID()).isEmpty(),
+                    "The guest must lose access, got " + access.guests(player.getUUID()));
+            List<String> texts = owner.messageTexts();
+            helper.assertTrue(
+                    texts.contains("[SpawnCommands] Revoked spawn access for 1 player(s)."),
+                    "The revoke must still report what it did, got " + texts);
+            String named = texts.getLast();
+            helper.assertTrue(
+                    named.startsWith(" SpawnBoth")
+                            && named.contains("previous name SpawnFirst")
+                            && named.contains("last seen "),
+                    "The revoke must name the account it revoked, got " + texts);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A guest who joins has their name and the time recorded, so "last seen" is their real last
+     * login rather than the last time an owner shared or revoked under that name.
+     */
+    public static void aJoinRecordsTheNameAndTheTime(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        SpawnAccessData access = SpawnAccessData.get(server);
+        UUID guest = UUID.randomUUID();
+        long before = System.currentTimeMillis();
+        try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
+            access.grant(owner.player().getUUID(), List.of(guest));
+            access.sawName(guest, "SpawnOldName", before - 86_400_000L);
+            try (GameTestPlayer joined =
+                    GameTestPlayer.join(helper, new GameProfile(guest, "SpawnNewName"))) {
+                List<SpawnAccessData.SeenName> seen = access.names(guest);
+                helper.assertTrue(
+                        !seen.isEmpty() && seen.getFirst().name().equals("SpawnNewName"),
+                        "A join must record the name the player joined under, got " + seen);
+                helper.assertTrue(
+                        seen.getFirst().lastSeen() >= before,
+                        "A join must record the time it happened, got " + seen);
+                helper.assertTrue(
+                        seen.stream().anyMatch(entry -> entry.name().equals("SpawnOldName")),
+                        "A join must keep the names already recorded, got " + seen);
+            }
+        }
+        helper.succeed();
+    }
+
     /** Runs {@code command} and asserts the dispatcher refuses it, leaving the player in place. */
     private static void assertRefused(
             GameTestHelper helper, ServerPlayer player, String command, Vec3 before) {
