@@ -357,6 +357,11 @@ public final class SpawnCommandRegistration {
             if (!charged(server, source, owner)) return 0;
             return report(source, access.revoke(ownerId, List.of(matches.getFirst())), false);
         }
+        long wait = ShareRateLimit.listing(server).refuse(owner.getUUID());
+        if (wait > 0) {
+            return SpawnCommands.FEEDBACK.failure(
+                    source, "You can ask for the list again in %s.", ShareRateLimit.describe(wait));
+        }
         SpawnCommands.FEEDBACK.neutral(
                 source,
                 "%d guests of your spawn have been called '%s'. Choose the one to revoke:",

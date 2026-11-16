@@ -22,6 +22,7 @@ public final class ShareRateLimit {
 
     private static final Map<MinecraftServer, ShareRateLimit> INSTANCES = new WeakHashMap<>();
     private static final Map<MinecraftServer, ShareRateLimit> LOOKUPS = new WeakHashMap<>();
+    private static final Map<MinecraftServer, ShareRateLimit> LISTINGS = new WeakHashMap<>();
 
     private final LongSupplier clock;
     private final Map<UUID, Deque<Long>> used = new HashMap<>();
@@ -37,6 +38,17 @@ public final class ShareRateLimit {
     public static ShareRateLimit lookups(MinecraftServer server) {
         synchronized (LOOKUPS) {
             return LOOKUPS.computeIfAbsent(server, ignored -> new ShareRateLimit(System::nanoTime));
+        }
+    }
+
+    /**
+     * The allowance the ambiguous revoke's list uses, kept apart from {@link #of}: the list must
+     * not charge the player the click its own button needs, and it must still be bounded.
+     */
+    public static ShareRateLimit listing(MinecraftServer server) {
+        synchronized (LISTINGS) {
+            return LISTINGS.computeIfAbsent(
+                    server, ignored -> new ShareRateLimit(System::nanoTime));
         }
     }
 
@@ -92,5 +104,6 @@ public final class ShareRateLimit {
     public static void clearAll(MinecraftServer server) {
         of(server).clear();
         lookups(server).clear();
+        listing(server).clear();
     }
 }
