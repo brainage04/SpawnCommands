@@ -63,8 +63,7 @@ public final class SpawnAccessData extends SavedData {
 
     public SpawnAccessData() {}
 
-    private SpawnAccessData(
-            Map<UUID, List<UUID>> shares, Map<UUID, List<SeenName>> guestNames) {
+    private SpawnAccessData(Map<UUID, List<UUID>> shares, Map<UUID, List<SeenName>> guestNames) {
         shares.forEach((owner, guests) -> this.shares.put(owner, new HashSet<>(guests)));
         guestNames.forEach((guest, seen) -> this.guestNames.put(guest, new ArrayList<>(seen)));
     }

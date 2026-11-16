@@ -701,9 +701,13 @@ public final class SpawnCommandsGameTests {
             // /spawnof names its owner with EntityArgument.player(), so the owner stays online.
             try (GameTestPlayer joined =
                     GameTestPlayer.join(helper, new GameProfile(away, "SpawnAway"))) {
+                int result = execute(joined.player(), "spawnof SpawnKeeper");
                 helper.assertTrue(
-                        execute(joined.player(), "spawnof SpawnKeeper") == 1,
-                        "A guest granted while offline must reach the spawn after joining");
+                        result == 1,
+                        "A guest granted while offline must reach the spawn after joining, got "
+                                + result
+                                + " with "
+                                + joined.messageTexts());
             }
         }
         helper.succeed();
@@ -1770,9 +1774,9 @@ public final class SpawnCommandsGameTests {
     }
 
     /**
-     * The lookup answers on a background thread, and the command finishes on the server thread
-     * once it has. Nothing may wait for the answer on the server thread: the tick counter has to
-     * keep moving while it is pending.
+     * The lookup answers on a background thread, and the command finishes on the server thread once
+     * it has. Nothing may wait for the answer on the server thread: the tick counter has to keep
+     * moving while it is pending.
      */
     public static void anUncachedNameIsSharedOnceTheLookupAnswers(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
@@ -1781,7 +1785,9 @@ public final class SpawnCommandsGameTests {
         NameLookup.install(
                 server,
                 new NameLookup(
-                        name -> Optional.of(new NameAndId(profile)), pending::set, server::execute));
+                        name -> Optional.of(new NameAndId(profile)),
+                        pending::set,
+                        server::execute));
         SpawnAccessData access = SpawnAccessData.get(server);
         // Closed inside the final step, which runs after this method has returned.
         GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper");
@@ -1815,10 +1821,7 @@ public final class SpawnCommandsGameTests {
                                                 + access.guests(player.getUUID()));
                                 helper.assertTrue(
                                         access.names(profile.id()).stream()
-                                                .anyMatch(
-                                                        seen ->
-                                                                seen.name()
-                                                                        .equals("SpawnGhost")),
+                                                .anyMatch(seen -> seen.name().equals("SpawnGhost")),
                                         "The answer must be recorded in the name history");
                                 helper.assertTrue(
                                         owner.messageTexts()
@@ -1838,8 +1841,7 @@ public final class SpawnCommandsGameTests {
     public static void aNameMojangDoesNotKnowIsRefused(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         NameLookup.install(
-                server,
-                new NameLookup(name -> Optional.empty(), Runnable::run, server::execute));
+                server, new NameLookup(name -> Optional.empty(), Runnable::run, server::execute));
         SpawnAccessData access = SpawnAccessData.get(server);
         try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
             ServerPlayer player = owner.player();
@@ -1853,8 +1855,7 @@ public final class SpawnCommandsGameTests {
                     "[SpawnCommands] Mojang has no player named 'SpawnNeverSeen'.",
                     0xFF5555);
             helper.assertTrue(
-                    access.guests(player.getUUID()).isEmpty(),
-                    "A refused name must share nothing");
+                    access.guests(player.getUUID()).isEmpty(), "A refused name must share nothing");
             helper.assertTrue(
                     !access.guests(player.getUUID())
                             .contains(UUIDUtil.createOfflinePlayerUUID("SpawnNeverSeen")),
@@ -1928,8 +1929,7 @@ public final class SpawnCommandsGameTests {
     public static void anAmbiguousRevokeListsEachGuestAndRevokesById(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         NameLookup.install(
-                server,
-                new NameLookup(name -> Optional.empty(), Runnable::run, server::execute));
+                server, new NameLookup(name -> Optional.empty(), Runnable::run, server::execute));
         SpawnAccessData access = SpawnAccessData.get(server);
         UUID renamed = UUID.randomUUID();
         UUID holder = UUID.randomUUID();

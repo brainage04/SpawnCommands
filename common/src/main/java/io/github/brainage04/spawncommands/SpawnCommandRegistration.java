@@ -108,10 +108,7 @@ public final class SpawnCommandRegistration {
             return arrive(guest, named.iterator().next());
         }
         String typed = typedArgument(context, "player");
-        List<NameAndId> known =
-                ServerNameCache.known(server).stream()
-                        .filter(candidate -> candidate.name().equalsIgnoreCase(typed))
-                        .toList();
+        List<NameAndId> known = named(server, typed);
         if (!known.isEmpty()) return arrive(guest, known.getFirst());
         UUID typedId = parseUuid(typed);
         if (typedId != null) {
@@ -142,7 +139,9 @@ public final class SpawnCommandRegistration {
                                     answer.status() == NameLookup.Status.FOUND
                                             ? arrive(current, answer.profile())
                                             : reportLookupFailure(
-                                                    current.createCommandSourceStack(), typed, answer);
+                                                    current.createCommandSourceStack(),
+                                                    typed,
+                                                    answer);
                         });
         return outcome[0];
     }
@@ -172,9 +171,7 @@ public final class SpawnCommandRegistration {
         long wait = ShareRateLimit.of(server).refuse(owner.getUUID());
         if (wait > 0) {
             return SpawnCommands.FEEDBACK.failure(
-                    source,
-                    "You can use /spawnshare again in %s.",
-                    ShareRateLimit.describe(wait));
+                    source, "You can use /spawnshare again in %s.", ShareRateLimit.describe(wait));
         }
         SpawnAccessData access = SpawnAccessData.get(server);
         GameProfileArgument.Result result =
@@ -199,10 +196,7 @@ public final class SpawnCommandRegistration {
             ServerPlayer owner,
             SpawnAccessData access,
             String typed) {
-        List<NameAndId> matches =
-                ServerNameCache.known(server).stream()
-                        .filter(player -> player.name().equalsIgnoreCase(typed))
-                        .toList();
+        List<NameAndId> matches = named(server, typed);
         if (!matches.isEmpty()) return apply(source, owner, access, true, matches);
         UUID id = parseUuid(typed);
         if (id != null) {
@@ -289,7 +283,11 @@ public final class SpawnCommandRegistration {
         }
         if (matches.size() == 1) {
             return apply(
-                    source, owner, access, false, List.of(new NameAndId(matches.getFirst(), typed)));
+                    source,
+                    owner,
+                    access,
+                    false,
+                    List.of(new NameAndId(matches.getFirst(), typed)));
         }
         SpawnCommands.FEEDBACK.neutral(
                 source,
@@ -381,6 +379,23 @@ public final class SpawnCommandRegistration {
                         .map(NameAndId::name)
                         .toList());
         return SharedSuggestionProvider.suggest(names.stream().distinct().toList(), builder);
+    }
+
+    /**
+     * The players a typed name belongs to: the online ones when any is online, otherwise the cached
+     * ones. A name can belong to several accounts over time, and the player standing here now is
+     * the one meant.
+     */
+    private static List<NameAndId> named(MinecraftServer server, String typed) {
+        List<NameAndId> online =
+                server.getPlayerList().getPlayers().stream()
+                        .map(ServerPlayer::nameAndId)
+                        .filter(player -> player.name().equalsIgnoreCase(typed))
+                        .toList();
+        if (!online.isEmpty()) return online;
+        return ServerNameCache.known(server).stream()
+                .filter(player -> player.name().equalsIgnoreCase(typed))
+                .toList();
     }
 
     private static Collection<NameAndId> cachedNames(MinecraftServer server, Collection<UUID> ids) {
