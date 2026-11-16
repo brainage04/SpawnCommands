@@ -1,0 +1,7 @@
+{
+  "environment": "minecraft:default",
+  "structure": "minecraftmodconventions:empty",
+  "max_ticks": 200,
+  "type": "minecraft:function",
+  "function": "spawncommands:a_stale_answer_is_not_shared_and_the_retry_uses_the_cache"
+}

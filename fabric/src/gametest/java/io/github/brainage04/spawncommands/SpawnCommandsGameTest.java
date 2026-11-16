@@ -204,6 +204,11 @@ public final class SpawnCommandsGameTest {
     }
 
     @GameTest
+    public void aStaleAnswerIsNotSharedAndTheRetryUsesTheCache(GameTestHelper helper) {
+        SpawnCommandsGameTests.aStaleAnswerIsNotSharedAndTheRetryUsesTheCache(helper);
+    }
+
+    @GameTest
     public void aNameMojangDoesNotKnowIsRefused(GameTestHelper helper) {
         SpawnCommandsGameTests.aNameMojangDoesNotKnowIsRefused(helper);
     }

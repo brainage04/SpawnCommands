@@ -1874,6 +1874,57 @@ public final class SpawnCommandsGameTests {
     }
 
     /** A name Mojang does not know is refused; no offline id may be invented for it. */
+    /**
+     * A found name that arrives too late to act on is not shared: the name is cached and the owner
+     * is asked to run the command again, which then answers from the cache without a second lookup.
+     */
+    public static void aStaleAnswerIsNotSharedAndTheRetryUsesTheCache(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        GameProfile profile = new GameProfile(UUID.randomUUID(), "SpawnLate");
+        int[] lookups = {0};
+        NameLookup.install(
+                server,
+                new NameLookup(
+                        name -> {
+                            lookups[0]++;
+                            return new NameLookup.Answer(
+                                    NameLookup.Status.STALE, new NameAndId(profile));
+                        },
+                        Runnable::run,
+                        server::execute,
+                        server::isSameThread));
+        SpawnAccessData access = SpawnAccessData.get(server);
+        try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
+            ServerPlayer player = owner.player();
+            owner.clearMessages();
+            helper.assertTrue(
+                    execute(player, "spawnshare SpawnLate") == 0, "A stale answer must not share");
+            assertLastMessage(
+                    helper,
+                    owner,
+                    "[SpawnCommands] Found 'SpawnLate', but the lookup took too long to act on."
+                            + " Run the command again.",
+                    0xFF5555);
+            helper.assertTrue(
+                    access.guests(player.getUUID()).isEmpty(),
+                    "A stale answer must share nothing, got " + access.guests(player.getUUID()));
+            owner.clearMessages();
+            helper.assertTrue(
+                    execute(player, "spawnshare SpawnLate") == 1,
+                    "The retry must share from the cache the stale answer wrote");
+            helper.assertTrue(
+                    access.guests(player.getUUID()).equals(List.of(profile.id())),
+                    "The retry must share the found account, got "
+                            + access.guests(player.getUUID()));
+            helper.assertTrue(
+                    lookups[0] == 1,
+                    "The retry must not look the name up again, but the stub ran " + lookups[0]);
+        } finally {
+            NameLookup.reset(server);
+        }
+        helper.succeed();
+    }
+
     public static void aNameMojangDoesNotKnowIsRefused(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         NameLookup.install(

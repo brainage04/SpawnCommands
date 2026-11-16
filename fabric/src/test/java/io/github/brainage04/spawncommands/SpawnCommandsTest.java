@@ -13,11 +13,13 @@ import com.mojang.serialization.JsonOps;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import net.minecraft.SharedConstants;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.server.players.NameAndId;
@@ -342,23 +344,48 @@ class SpawnCommandsTest {
     void aFoundNameThatArrivesTooLateIsNotActedOn() {
         NameAndId profile = new NameAndId(UUID.randomUUID(), "Steve");
         AtomicReference<Runnable> queued = new AtomicReference<>();
+        long[] now = {0};
+        LongSupplier clock = () -> now[0];
         NameLookup lookup =
-                new NameLookup(name -> found(profile), queued::set, Runnable::run, () -> true, 0);
+                new NameLookup(
+                        name -> found(profile), queued::set, Runnable::run, () -> true, clock);
         AtomicReference<NameLookup.Answer> answer = new AtomicReference<>();
         lookup.lookup("Steve", answer::set);
+        // The clock moves while the lookup waits in the queue, which is the wait the bound is for.
+        now[0] = Duration.ofSeconds(31).toNanos();
         queued.get().run();
         assertEquals(NameLookup.Status.STALE, answer.get().status());
         assertEquals(profile, answer.get().profile(), "the player is told which account was found");
+    }
+
+    /** An answer inside the bound is acted on, so the bound is not simply "always stale". */
+    @Test
+    void aFoundNameInsideTheBoundIsActedOn() {
+        NameAndId profile = new NameAndId(UUID.randomUUID(), "Steve");
+        AtomicReference<Runnable> queued = new AtomicReference<>();
+        long[] now = {0};
+        LongSupplier clock = () -> now[0];
+        NameLookup lookup =
+                new NameLookup(
+                        name -> found(profile), queued::set, Runnable::run, () -> true, clock);
+        AtomicReference<NameLookup.Answer> answer = new AtomicReference<>();
+        lookup.lookup("Steve", answer::set);
+        now[0] = Duration.ofSeconds(29).toNanos();
+        queued.get().run();
+        assertEquals(NameLookup.Status.FOUND, answer.get().status());
     }
 
     /** A late answer that only sends a message is still delivered. */
     @Test
     void aLateFailureIsStillReported() {
         AtomicReference<Runnable> queued = new AtomicReference<>();
+        long[] now = {0};
+        LongSupplier clock = () -> now[0];
         NameLookup lookup =
-                new NameLookup(name -> notFound(), queued::set, Runnable::run, () -> true, 0);
+                new NameLookup(name -> notFound(), queued::set, Runnable::run, () -> true, clock);
         AtomicReference<NameLookup.Answer> answer = new AtomicReference<>();
         lookup.lookup("HomesNeverSeen", answer::set);
+        now[0] = Duration.ofSeconds(31).toNanos();
         queued.get().run();
         assertEquals(NameLookup.Status.NOT_FOUND, answer.get().status());
     }

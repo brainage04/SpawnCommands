@@ -171,6 +171,10 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 SpawnCommandsGameTests::anUncachedNameIsSharedOnceTheLookupAnswers);
         register(
                 event,
+                "a_stale_answer_is_not_shared_and_the_retry_uses_the_cache",
+                SpawnCommandsGameTests::aStaleAnswerIsNotSharedAndTheRetryUsesTheCache);
+        register(
+                event,
                 "a_name_mojang_does_not_know_is_refused",
                 SpawnCommandsGameTests::aNameMojangDoesNotKnowIsRefused);
         register(
