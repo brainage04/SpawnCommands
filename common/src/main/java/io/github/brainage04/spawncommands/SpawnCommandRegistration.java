@@ -250,6 +250,15 @@ public final class SpawnCommandRegistration {
     private static int report(
             MinecraftServer server, ServerPlayer owner, String typed, NameLookup.Answer answer) {
         CommandSourceStack source = owner.createCommandSourceStack();
+        if (answer.status() == NameLookup.Status.STALE) {
+            // Caching the name makes the retry answer at once, without another lookup.
+            server.services().nameToIdCache().add(answer.profile());
+            SpawnCommands.FEEDBACK.failure(
+                    source,
+                    "Found '%s', but the lookup took too long to act on. Run the command again.",
+                    typed);
+            return 0;
+        }
         if (answer.status() != NameLookup.Status.FOUND) {
             return reportLookupFailure(source, typed, answer);
         }
