@@ -258,7 +258,7 @@ public final class SpawnCommandRegistration {
                                             candidateLine(
                                                     access,
                                                     match.id(),
-                                                    match.name(),
+                                                    displayName(server, access, match.id()),
                                                     "Share",
                                                     "/spawnshare " + match.id()))
                             .toList());
@@ -271,10 +271,12 @@ public final class SpawnCommandRegistration {
         if (id != null) {
             List<NameAndId> cached = List.copyOf(cachedNames(server, List.of(id)));
             if (cached.isEmpty()) {
-                // The [Share] button names an account by id, and the cache entry can have expired
-                // while the history the list was built from still holds the name.
-                List<SpawnAccessData.SeenName> seen = access.names(id);
-                if (!seen.isEmpty()) cached = List.of(new NameAndId(id, seen.getFirst().name()));
+                // The [Share] button names an account by id, and usercache.json keeps only the 1000
+                // most recently used profiles (CachedUserNameToIdResolver.java:40,172), so an
+                // account the list was built from can be gone from the cache.
+                if (!access.names(id).isEmpty()) {
+                    cached = List.of(new NameAndId(id, displayName(server, access, id)));
+                }
             }
             if (!cached.isEmpty()) {
                 if (!charged(server, source, owner)) return 0;

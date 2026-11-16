@@ -2236,9 +2236,10 @@ public final class SpawnCommandsGameTests {
         try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
             ServerPlayer player = owner.player();
             long now = System.currentTimeMillis();
+            long seenAt = now - 1_000L;
             access.sawName(renamed, "SpawnFirst", now - 86_400_000L);
-            access.sawName(renamed, "SpawnBoth", now);
-            access.sawName(holder, "SpawnBoth", now);
+            access.sawName(renamed, "SpawnBoth", seenAt);
+            access.sawName(holder, "SpawnBoth", seenAt);
             // Written after the join, which saves the cache from memory and would drop these.
             writeCache(server, Map.of(renamed, "SpawnBoth", holder, "SpawnBoth"));
             owner.clearMessages();
@@ -2297,6 +2298,16 @@ public final class SpawnCommandsGameTests {
                     access.guests(player.getUUID()).equals(List.of(renamed)),
                     "Only the clicked account may be granted, got "
                             + access.guests(player.getUUID()));
+            // The grant records the name without claiming a sighting, so the time the join
+            // recorded stays: a grant must not move "last seen" forward.
+            helper.assertTrue(
+                    access.names(renamed).stream()
+                            .anyMatch(
+                                    entry ->
+                                            entry.name().equals("SpawnBoth")
+                                                    && entry.lastSeen() == seenAt),
+                    "A grant must not overwrite the time the join recorded, got "
+                            + access.names(renamed));
         }
         helper.succeed();
     }
@@ -2337,13 +2348,15 @@ public final class SpawnCommandsGameTests {
     }
 
     /**
-     * A guest who joins has their name and the time recorded, so "last seen" is their real last
-     * login rather than the last time an owner shared or revoked under that name.
+     * A player who joins has their name and the time recorded, so "last seen" is their real last
+     * login rather than the last time an owner shared or revoked under that name. A player who
+     * joins before an owner shares with them keeps that login too.
      */
     public static void aJoinRecordsTheNameAndTheTime(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         SpawnAccessData access = SpawnAccessData.get(server);
         UUID guest = UUID.randomUUID();
+        UUID later = UUID.randomUUID();
         long before = System.currentTimeMillis();
         try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
             access.grant(owner.player().getUUID(), List.of(guest));
@@ -2360,6 +2373,23 @@ public final class SpawnCommandsGameTests {
                 helper.assertTrue(
                         seen.stream().anyMatch(entry -> entry.name().equals("SpawnOldName")),
                         "A join must keep the names already recorded, got " + seen);
+            }
+            // A player who is not a guest yet keeps the login they made before the share.
+            try (GameTestPlayer early =
+                    GameTestPlayer.join(helper, new GameProfile(later, "SpawnEarly"))) {
+                helper.assertTrue(
+                        access.names(later).stream()
+                                .anyMatch(entry -> entry.name().equals("SpawnEarly")),
+                        "A join before the share must be recorded, got " + access.names(later));
+                access.grant(owner.player().getUUID(), List.of(later));
+                helper.assertTrue(
+                        access.names(later).stream()
+                                .anyMatch(
+                                        entry ->
+                                                entry.name().equals("SpawnEarly")
+                                                        && entry.lastSeen() >= before),
+                        "The login before the share must still be the last seen, got "
+                                + access.names(later));
             }
         }
         helper.succeed();
