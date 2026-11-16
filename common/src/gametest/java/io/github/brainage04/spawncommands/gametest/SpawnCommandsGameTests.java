@@ -2406,10 +2406,13 @@ public final class SpawnCommandsGameTests {
             }
             // The join hook prunes, so recording every join cannot grow the saved data without
             // bound. Seeded past the cap rather than joined, which would need 1001 logins. The
-            // fillers are newer than the owner's own join, so the owner survives only because an
-            // online player is in the keep set.
+            // fillers are newer than the owner's own join and than the guest's, so each survives
+            // only through the keep set: the owner as an online player, the guest as a guest.
             UUID oldest = UUID.randomUUID();
             access.recordJoin(oldest, "SpawnOldest", 1L);
+            UUID oldGuest = UUID.randomUUID();
+            access.grant(owner.player().getUUID(), List.of(oldGuest));
+            access.recordJoin(oldGuest, "SpawnOldGuest", 2L);
             long newest = System.currentTimeMillis() + 1_000L;
             for (int use = 0; use < 1_001; use++) {
                 access.recordJoin(UUID.randomUUID(), "SpawnFiller" + use, newest + use);
@@ -2422,13 +2425,32 @@ public final class SpawnCommandsGameTests {
                         "A join must prune the oldest non-guest history, got "
                                 + access.names(oldest));
                 helper.assertTrue(
-                        !access.names(guest).isEmpty(),
-                        "A join must keep a guest's history, got " + access.names(guest));
+                        !access.names(oldGuest).isEmpty(),
+                        "A join must keep a guest's history, got " + access.names(oldGuest));
                 helper.assertTrue(
                         !access.names(owner.player().getUUID()).isEmpty(),
                         "A join must keep an online player's history, got "
                                 + access.names(owner.player().getUUID()));
             }
+            // A grant prunes too, and runs after the grant, so the account just granted is in the
+            // keep set even though its history is the oldest in the map.
+            UUID granted = UUID.randomUUID();
+            access.recordJoin(granted, "SpawnGranted", 1L);
+            UUID firstLater = UUID.randomUUID();
+            access.recordJoin(firstLater, "SpawnLater0", newest);
+            for (int use = 1; use < 1_001; use++) {
+                access.recordJoin(UUID.randomUUID(), "SpawnLater" + use, newest + use);
+            }
+            helper.assertTrue(
+                    share(owner.player(), "spawnshare " + granted) == 1,
+                    "The grant must land, got " + owner.messageTexts());
+            helper.assertTrue(
+                    !access.names(granted).isEmpty(),
+                    "A grant must keep the granted account's history, got "
+                            + access.names(granted));
+            helper.assertTrue(
+                    access.names(firstLater).isEmpty(),
+                    "A grant must prune the oldest non-guest history");
         }
         helper.succeed();
     }
