@@ -390,8 +390,8 @@ public final class SpawnCommandRegistration {
     }
 
     /**
-     * The single online player a selector names. Selectors stay online-players-only, as
-     * {@code EntityArgument.player()} made them: {@code findPlayers} checks the selector permission
+     * The single online player a selector names. Selectors stay online-players-only, as {@code
+     * EntityArgument.player()} made them: {@code findPlayers} checks the selector permission
      * (EntitySelector.java:119-124), and a selector that will not parse is refused with the
      * parser's own message.
      */
