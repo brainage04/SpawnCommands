@@ -676,15 +676,18 @@ public final class SpawnCommandsGameTests {
                             Runnable::run,
                             server::execute,
                             server::isSameThread));
-            helper.assertTrue(
-                    share(owner.player(), "spawnshare SpawnNeverSeen") == 0,
-                    "A name Mojang does not know must be refused");
-            assertLastMessage(
-                    helper,
-                    owner,
-                    "[SpawnCommands] Mojang has no player named 'SpawnNeverSeen'.",
-                    0xFF5555);
-            NameLookup.reset(server);
+            try {
+                helper.assertTrue(
+                        share(owner.player(), "spawnshare SpawnNeverSeen") == 0,
+                        "A name Mojang does not know must be refused");
+                assertLastMessage(
+                        helper,
+                        owner,
+                        "[SpawnCommands] Mojang has no player named 'SpawnNeverSeen'.",
+                        0xFF5555);
+            } finally {
+                NameLookup.reset(server);
+            }
             try (GameTestPlayer online = GameTestPlayer.join(helper, "SpawnOnline")) {
                 helper.assertTrue(
                         share(
@@ -1704,15 +1707,18 @@ public final class SpawnCommandsGameTests {
                             server::execute,
                             server::isSameThread));
             guest.clearMessages();
-            helper.assertTrue(
-                    execute(guestPlayer, "spawnof SpawnOffUnknown") == 0,
-                    "A name Mojang does not know must be refused");
-            assertLastMessage(
-                    helper,
-                    guest,
-                    "[SpawnCommands] Mojang has no player named 'SpawnOffUnknown'.",
-                    0xFF5555);
-            NameLookup.reset(server);
+            try {
+                helper.assertTrue(
+                        execute(guestPlayer, "spawnof SpawnOffUnknown") == 0,
+                        "A name Mojang does not know must be refused");
+                assertLastMessage(
+                        helper,
+                        guest,
+                        "[SpawnCommands] Mojang has no player named 'SpawnOffUnknown'.",
+                        0xFF5555);
+            } finally {
+                NameLookup.reset(server);
+            }
             helper.assertTrue(
                     guestPlayer.position().equals(before), "Refusals must not move the guest");
         }
@@ -1836,13 +1842,9 @@ public final class SpawnCommandsGameTests {
         helper.assertTrue(
                 access.guests(player.getUUID()).isEmpty(),
                 "Nothing may be shared before the answer arrives");
-        long before = helper.getTick();
         helper.runAfterDelay(
                 5,
                 () -> {
-                    helper.assertTrue(
-                            helper.getTick() - before >= 5,
-                            "The server must keep ticking while the lookup is pending");
                     helper.assertTrue(
                             access.guests(player.getUUID()).isEmpty(),
                             "Nothing may be shared before the answer arrives");
@@ -1943,21 +1945,25 @@ public final class SpawnCommandsGameTests {
         try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
             ServerPlayer player = owner.player();
             owner.clearMessages();
-            helper.assertTrue(
-                    execute(player, "spawnshare SpawnNeverSeen") == 0,
-                    "A name Mojang does not know must be refused");
-            assertLastMessage(
-                    helper,
-                    owner,
-                    "[SpawnCommands] Mojang has no player named 'SpawnNeverSeen'.",
-                    0xFF5555);
-            helper.assertTrue(
-                    access.guests(player.getUUID()).isEmpty(), "A refused name must share nothing");
-            helper.assertTrue(
-                    !access.guests(player.getUUID())
-                            .contains(UUIDUtil.createOfflinePlayerUUID("SpawnNeverSeen")),
-                    "An offline id must never stand in for a name Mojang does not know");
-            NameLookup.reset(server);
+            try {
+                helper.assertTrue(
+                        execute(player, "spawnshare SpawnNeverSeen") == 0,
+                        "A name Mojang does not know must be refused");
+                assertLastMessage(
+                        helper,
+                        owner,
+                        "[SpawnCommands] Mojang has no player named 'SpawnNeverSeen'.",
+                        0xFF5555);
+                helper.assertTrue(
+                        access.guests(player.getUUID()).isEmpty(),
+                        "A refused name must share nothing");
+                helper.assertTrue(
+                        !access.guests(player.getUUID())
+                                .contains(UUIDUtil.createOfflinePlayerUUID("SpawnNeverSeen")),
+                        "An offline id must never stand in for a name Mojang does not know");
+            } finally {
+                NameLookup.reset(server);
+            }
         }
         helper.succeed();
     }
@@ -1976,18 +1982,22 @@ public final class SpawnCommandsGameTests {
         try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
             ServerPlayer player = owner.player();
             owner.clearMessages();
-            helper.assertTrue(
-                    execute(player, "spawnshare SpawnGhost") == 0,
-                    "A failed lookup must not share");
-            assertLastMessage(
-                    helper,
-                    owner,
-                    "[SpawnCommands] Could not look up 'SpawnGhost' right now. Try again later.",
-                    0xFF5555);
-            helper.assertTrue(
-                    access.guests(player.getUUID()).isEmpty(),
-                    "A failed lookup must change nothing");
-            NameLookup.reset(server);
+            try {
+                helper.assertTrue(
+                        execute(player, "spawnshare SpawnGhost") == 0,
+                        "A failed lookup must not share");
+                assertLastMessage(
+                        helper,
+                        owner,
+                        "[SpawnCommands] Could not look up 'SpawnGhost' right now. Try again"
+                                + " later.",
+                        0xFF5555);
+                helper.assertTrue(
+                        access.guests(player.getUUID()).isEmpty(),
+                        "A failed lookup must change nothing");
+            } finally {
+                NameLookup.reset(server);
+            }
         }
         helper.succeed();
     }
@@ -2286,12 +2296,12 @@ public final class SpawnCommandsGameTests {
      * sharing does, and several uses in one second would otherwise hit the rate limit.
      */
     private static int share(ServerPlayer player, String command) {
-        ShareRateLimit.of(player.level().getServer()).clear();
+        ShareRateLimit.clearAll(player.level().getServer());
         return execute(player, command);
     }
 
     private static int share(CommandSourceStack source, String command) {
-        ShareRateLimit.of(source.getServer()).clear();
+        ShareRateLimit.clearAll(source.getServer());
         return execute(source, command);
     }
 

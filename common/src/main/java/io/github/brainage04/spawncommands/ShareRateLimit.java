@@ -21,12 +21,23 @@ public final class ShareRateLimit {
     private static final long HOUR = 60 * MINUTE;
 
     private static final Map<MinecraftServer, ShareRateLimit> INSTANCES = new WeakHashMap<>();
+    private static final Map<MinecraftServer, ShareRateLimit> LOOKUPS = new WeakHashMap<>();
 
     private final LongSupplier clock;
     private final Map<UUID, Deque<Long>> used = new HashMap<>();
 
     public ShareRateLimit(LongSupplier clock) {
         this.clock = clock;
+    }
+
+    /**
+     * The allowance /spawnof's own lookups use, kept apart from {@link #of} so a guest looping
+     * /spawnof cannot spend the allowance /spawnshare needs.
+     */
+    public static ShareRateLimit lookups(MinecraftServer server) {
+        synchronized (LOOKUPS) {
+            return LOOKUPS.computeIfAbsent(server, ignored -> new ShareRateLimit(System::nanoTime));
+        }
     }
 
     public static ShareRateLimit of(MinecraftServer server) {
@@ -73,5 +84,13 @@ public final class ShareRateLimit {
     /** Forgets every use, for a GameTest whose steps all run within one second. */
     public void clear() {
         used.clear();
+    }
+
+    /**
+     * Clears both allowances for {@code server}: the share allowance and the /spawnof lookup one.
+     */
+    public static void clearAll(MinecraftServer server) {
+        of(server).clear();
+        lookups(server).clear();
     }
 }

@@ -563,8 +563,4 @@ class SpawnCommandsTest {
     private static NameLookup.Answer notFound() {
         return new NameLookup.Answer(NameLookup.Status.NOT_FOUND, null);
     }
-
-    private static NameLookup.Answer failed() {
-        return new NameLookup.Answer(NameLookup.Status.FAILED, null);
-    }
 }

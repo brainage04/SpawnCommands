@@ -108,8 +108,9 @@ public final class SpawnCommandRegistration {
         }
         // Online and cached matches together: an online player who never shared must not hide an
         // offline one who did.
-        List<NameAndId> known = new ArrayList<>(named(server, typed));
-        for (NameAndId cached : ServerNameCache.known(server)) {
+        List<NameAndId> cachedNames = ServerNameCache.known(server);
+        List<NameAndId> known = new ArrayList<>(named(server, typed, cachedNames));
+        for (NameAndId cached : cachedNames) {
             if (cached.name().equalsIgnoreCase(typed)
                     && known.stream().noneMatch(seen -> seen.id().equals(cached.id()))) {
                 known.add(cached);
@@ -123,7 +124,7 @@ public final class SpawnCommandRegistration {
             ServerPlayer byId = server.getPlayerList().getPlayer(typedId);
             if (byId != null) return arrive(guest, List.of(byId.nameAndId()));
             Optional<NameAndId> cached =
-                    ServerNameCache.known(server).stream()
+                    cachedNames.stream()
                             .filter(candidate -> candidate.id().equals(typedId))
                             .findFirst();
             if (cached.isEmpty()) {
@@ -138,6 +139,15 @@ public final class SpawnCommandRegistration {
             return SpawnCommands.FEEDBACK.failure(
                     source, "No player named '%s' has shared their spawn with you.", typed);
         }
+        // /spawnof is not a share, so it has its own allowance: a guest who loops it must not be
+        // able to spend the lookups /spawnshare needs.
+        long wait = ShareRateLimit.lookups(server).refuse(guest.getUUID());
+        if (wait > 0) {
+            return SpawnCommands.FEEDBACK.failure(
+                    source,
+                    "You can ask for a name to be looked up again in %s.",
+                    ShareRateLimit.describe(wait));
+        }
         SpawnCommands.FEEDBACK.neutral(source, "Looking up %s...", typed);
         UUID guestId = guest.getUUID();
         int[] outcome = {1};
@@ -147,13 +157,11 @@ public final class SpawnCommandRegistration {
                         answer -> {
                             ServerPlayer current = server.getPlayerList().getPlayer(guestId);
                             if (current == null) return;
-                            outcome[0] =
-                                    answer.status() == NameLookup.Status.FOUND
-                                            ? arrive(current, List.of(answer.profile()))
-                                            : reportLookupFailure(
-                                                    current.createCommandSourceStack(),
-                                                    typed,
-                                                    answer);
+                            if (answer.status() == NameLookup.Status.FOUND) {
+                                outcome[0] = arrive(current, List.of(answer.profile()));
+                            } else {
+                                outcome[0] = reportLookupFailure(server, current, typed, answer);
+                            }
                         });
         return outcome[0];
     }
@@ -208,9 +216,9 @@ public final class SpawnCommandRegistration {
 
     /**
      * Counts this use against the player's allowance, or answers false and says how long to wait.
-     * Every use that changes access is counted, whichever name it was given; a use that changes
-     * nothing must not be, or the [Revoke] button the ambiguous list prints would be refused for a
-     * second because the list itself, which changes nothing, spent the use.
+     * Every use that reaches a grant or a revoke is counted, whichever name it was given. The
+     * ambiguous list is not, because it only prints: charging it would refuse the [Revoke] button
+     * it prints whenever the button is clicked inside the same second.
      */
     private static boolean charged(
             MinecraftServer server, CommandSourceStack source, ServerPlayer owner) {
@@ -232,7 +240,7 @@ public final class SpawnCommandRegistration {
             ServerPlayer owner,
             SpawnAccessData access,
             String typed) {
-        List<NameAndId> matches = named(server, typed);
+        List<NameAndId> matches = named(server, typed, ServerNameCache.known(server));
         if (!matches.isEmpty()) {
             if (!charged(server, source, owner)) return 0;
             return apply(source, owner, access, true, matches);
@@ -266,27 +274,32 @@ public final class SpawnCommandRegistration {
 
     private static int report(
             MinecraftServer server, ServerPlayer owner, String typed, NameLookup.Answer answer) {
-        CommandSourceStack source = owner.createCommandSourceStack();
-        if (answer.status() == NameLookup.Status.STALE) {
-            // Caching the name makes the retry answer at once, without another lookup.
-            server.services().nameToIdCache().add(answer.profile());
-            SpawnCommands.FEEDBACK.failure(
-                    source,
-                    "Found '%s', but the lookup took too long to act on. Run the command again.",
-                    typed);
-            return 0;
-        }
         if (answer.status() != NameLookup.Status.FOUND) {
-            return reportLookupFailure(source, typed, answer);
+            return reportLookupFailure(server, owner, typed, answer);
         }
+        CommandSourceStack source = owner.createCommandSourceStack();
         NameAndId profile = answer.profile();
         // add() also rewrites usercache.json (CachedUserNameToIdResolver.java:86-95).
         server.services().nameToIdCache().add(profile);
         return apply(source, owner, SpawnAccessData.get(server), true, List.of(profile));
     }
 
+    /**
+     * Answers a lookup that found nothing to act on. A {@code STALE} answer found the account but
+     * too late, so its name is cached and the player is asked to run the command again; the other
+     * three only say what happened.
+     */
     private static int reportLookupFailure(
-            CommandSourceStack source, String typed, NameLookup.Answer answer) {
+            MinecraftServer server, ServerPlayer player, String typed, NameLookup.Answer answer) {
+        CommandSourceStack source = player.createCommandSourceStack();
+        if (answer.status() == NameLookup.Status.STALE) {
+            // Caching the name makes the retry answer at once, without another lookup.
+            server.services().nameToIdCache().add(answer.profile());
+            return SpawnCommands.FEEDBACK.failure(
+                    source,
+                    "Found '%s', but the lookup took too long to act on. Run the command again.",
+                    typed);
+        }
         return switch (answer.status()) {
             case NOT_FOUND ->
                     SpawnCommands.FEEDBACK.failure(
@@ -331,6 +344,16 @@ public final class SpawnCommandRegistration {
         }
         if (matches.isEmpty()) return revokeFoundByName(server, source, owner, typed);
         if (matches.size() == 1) {
+            // The typed name may also be the current name of someone who never had access: the
+            // owner could mean that account. Nothing is revoked until the guest is named by id.
+            if (!holdersOutside(server, matches, typed).isEmpty()) {
+                return SpawnCommands.FEEDBACK.failure(
+                        source,
+                        "'%s' is also the name of a player who does not have access to your spawn."
+                                + " Run '/spawnshare revoke %s' to revoke the guest.",
+                        typed,
+                        matches.getFirst());
+            }
             if (!charged(server, source, owner)) return 0;
             return report(source, access.revoke(ownerId, List.of(matches.getFirst())), false);
         }
@@ -390,26 +413,11 @@ public final class SpawnCommandRegistration {
             server.services().nameToIdCache().add(profile);
             return report(source, access.revoke(ownerId, List.of(profile.id())), false);
         }
-        if (answer.status() == NameLookup.Status.STALE) {
-            server.services().nameToIdCache().add(answer.profile());
-            return SpawnCommands.FEEDBACK.failure(
-                    source,
-                    "Found '%s', but the lookup took too long to act on. Run the command again.",
-                    typed);
+        if (answer.status() != NameLookup.Status.NOT_FOUND) {
+            return reportLookupFailure(server, owner, typed, answer);
         }
-        return switch (answer.status()) {
-            case NOT_FOUND ->
-                    SpawnCommands.FEEDBACK.failure(
-                            source, "No guest of your spawn is named '%s'.", typed);
-            case FAILED ->
-                    SpawnCommands.FEEDBACK.failure(
-                            source, "Could not look up '%s' right now. Try again later.", typed);
-            default ->
-                    SpawnCommands.FEEDBACK.failure(
-                            source,
-                            "Too many name lookups on this server right now. Try again in a"
-                                    + " couple of minutes.");
-        };
+        return SpawnCommands.FEEDBACK.failure(
+                source, "No guest of your spawn is named '%s'.", typed);
     }
 
     /** One line of the ambiguous revoke list: the guest, its other names, and a revoke button. */
@@ -453,8 +461,12 @@ public final class SpawnCommandRegistration {
             SpawnAccessData access,
             boolean grant,
             Collection<NameAndId> named) {
+        // A revoke records no name: the history is what finds the guest again, and a name the
+        // owner typed to remove access is not a sighting of the player.
         long now = System.currentTimeMillis();
-        for (NameAndId profile : named) access.sawName(profile.id(), profile.name(), now);
+        if (grant) {
+            for (NameAndId profile : named) access.sawName(profile.id(), profile.name(), now);
+        }
         Collection<UUID> playerIds = named.stream().map(NameAndId::id).toList();
         int changed =
                 grant
@@ -529,15 +541,34 @@ public final class SpawnCommandRegistration {
      * ones. A name can belong to several accounts over time, and the player standing here now is
      * the one meant.
      */
-    private static List<NameAndId> named(MinecraftServer server, String typed) {
+    private static List<NameAndId> named(
+            MinecraftServer server, String typed, List<NameAndId> cached) {
         List<NameAndId> online =
                 server.getPlayerList().getPlayers().stream()
                         .map(ServerPlayer::nameAndId)
                         .filter(player -> player.name().equalsIgnoreCase(typed))
                         .toList();
         if (!online.isEmpty()) return online;
-        return ServerNameCache.known(server).stream()
-                .filter(player -> player.name().equalsIgnoreCase(typed))
+        return cached.stream().filter(player -> player.name().equalsIgnoreCase(typed)).toList();
+    }
+
+    /**
+     * The accounts the server knows under {@code typed} that are not in {@code guests}. A name can
+     * belong to a renamed guest and to whoever holds it now, and only the guest can be revoked.
+     */
+    private static List<NameAndId> holdersOutside(
+            MinecraftServer server, List<UUID> guests, String typed) {
+        List<NameAndId> holders =
+                new ArrayList<>(
+                        server.getPlayerList().getPlayers().stream()
+                                .map(ServerPlayer::nameAndId)
+                                .filter(player -> player.name().equalsIgnoreCase(typed))
+                                .toList());
+        holders.addAll(ServerNameCache.known(server));
+        return holders.stream()
+                .filter(holder -> holder.name().equalsIgnoreCase(typed))
+                .filter(holder -> !guests.contains(holder.id()))
+                .distinct()
                 .toList();
     }
 
