@@ -576,15 +576,18 @@ public final class SpawnCommandRegistration {
         // owner typed to remove access is not a sighting of the player.
         if (grant) {
             for (NameAndId profile : named) access.recordName(profile.id(), profile.name());
-            // A grant records a name for an account that may be neither a guest nor online, so the
-            // non-guest cap is enforced here as well as on a join.
-            access.pruneNames(SpawnCommands.guestsAndOnline(owner.level().getServer(), access));
         }
         Collection<UUID> playerIds = named.stream().map(NameAndId::id).toList();
         int changed =
                 grant
                         ? access.grant(owner.getUUID(), playerIds)
                         : access.revoke(owner.getUUID(), playerIds);
+        if (grant) {
+            // A grant records a name for an account that may be neither a guest nor online, so the
+            // non-guest cap is enforced here as well as on a join. It runs after the grant, so the
+            // account just granted is already in the keep set.
+            access.pruneNames(SpawnCommands.guestsAndOnline(owner.level().getServer(), access));
+        }
         return report(source, changed, grant);
     }
 

@@ -2288,7 +2288,10 @@ public final class SpawnCommandsGameTests {
                                     List.of("/spawnshare " + renamed, "/spawnshare " + holder)),
                     "Each match must carry a share button for its own id, got " + clicks);
             // The click runs in the same second as the list, through execute() rather than share(),
-            // so the allowance the list would have spent is the point of the step.
+            // so the allowance the list would have spent is the point of the step. The cache is
+            // rewritten without the clicked account first, so the click resolves it from the
+            // history, as it must once usercache.json has dropped the account.
+            writeCache(server, Map.of(holder, "SpawnBoth"));
             helper.assertTrue(
                     execute(player, "spawnshare " + renamed) == 1,
                     "A clicked share must grant the account whose id it names, and the list may not"
@@ -2343,6 +2346,17 @@ public final class SpawnCommandsGameTests {
                             && named.contains("previous name SpawnSoloOld")
                             && named.contains("last seen "),
                     "The revoke must name the account it revoked, got " + texts);
+            // The [Revoke] button's own command names the guest by id, and must name it back.
+            UUID second = UUID.randomUUID();
+            access.grant(player.getUUID(), List.of(second));
+            access.sawName(second, "SpawnById", now);
+            owner.clearMessages();
+            helper.assertTrue(
+                    share(player, "spawnshare revoke " + second) == 1,
+                    "A revoke by id must revoke the guest");
+            helper.assertTrue(
+                    owner.messageTexts().getLast().startsWith(" SpawnById"),
+                    "A revoke by id must name the account it revoked, got " + owner.messageTexts());
         }
         helper.succeed();
     }
@@ -2390,6 +2404,27 @@ public final class SpawnCommandsGameTests {
                                                         && entry.lastSeen() >= before),
                         "The login before the share must still be the last seen, got "
                                 + access.names(later));
+            }
+            // The join hook prunes, so recording every join cannot grow the saved data without
+            // bound. Seeded past the cap rather than joined, which would need 1001 logins.
+            UUID oldest = UUID.randomUUID();
+            access.recordJoin(oldest, "SpawnOldest", 1L);
+            for (int use = 0; use < 1_001; use++) {
+                access.recordJoin(UUID.randomUUID(), "SpawnFiller" + use, 2L + use);
+            }
+            try (GameTestPlayer pruner =
+                    GameTestPlayer.join(
+                            helper, new GameProfile(UUID.randomUUID(), "SpawnPruner"))) {
+                helper.assertTrue(
+                        access.names(oldest).isEmpty(),
+                        "A join must prune the oldest non-guest history, got "
+                                + access.names(oldest));
+                helper.assertTrue(
+                        !access.names(guest).isEmpty(),
+                        "A join must keep a guest's history, got " + access.names(guest));
+                helper.assertTrue(
+                        !access.names(pruner.player().getUUID()).isEmpty(),
+                        "A join must keep the joining player's history");
             }
         }
         helper.succeed();
