@@ -192,4 +192,29 @@ public final class SpawnCommandsGameTest {
     public void vanillaTpLeavesTheDestinationChunkUnloaded(GameTestHelper helper) {
         SpawnCommandsGameTests.vanillaTpLeavesTheDestinationChunkUnloaded(helper);
     }
+
+    @GameTest
+    public void anUncachedNameIsSharedOnceTheLookupAnswers(GameTestHelper helper) {
+        SpawnCommandsGameTests.anUncachedNameIsSharedOnceTheLookupAnswers(helper);
+    }
+
+    @GameTest
+    public void aNameMojangDoesNotKnowIsRefused(GameTestHelper helper) {
+        SpawnCommandsGameTests.aNameMojangDoesNotKnowIsRefused(helper);
+    }
+
+    @GameTest
+    public void aFailedLookupChangesNothing(GameTestHelper helper) {
+        SpawnCommandsGameTests.aFailedLookupChangesNothing(helper);
+    }
+
+    @GameTest
+    public void spawnshareIsRateLimitedPerPlayer(GameTestHelper helper) {
+        SpawnCommandsGameTests.spawnshareIsRateLimitedPerPlayer(helper);
+    }
+
+    @GameTest
+    public void anAmbiguousRevokeListsEachGuestAndRevokesById(GameTestHelper helper) {
+        SpawnCommandsGameTests.anAmbiguousRevokeListsEachGuestAndRevokesById(helper);
+    }
 }

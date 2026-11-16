@@ -12,8 +12,10 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import net.minecraft.SharedConstants;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.server.players.NameAndId;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -165,5 +167,178 @@ class SpawnCommandsTest {
         Path world = Files.createDirectory(root.resolve("world"));
 
         assertEquals(Optional.empty(), ServerNameCache.cacheFile(root, Optional.of(world)));
+    }
+
+    @Test
+    void aFoundNameReachesTheServerThread() {
+        NameAndId profile = new NameAndId(UUID.randomUUID(), "Steve");
+        NameLookup lookup = lookup(name -> Optional.of(profile));
+        AtomicReference<NameLookup.Answer> answer = new AtomicReference<>();
+        lookup.lookup("steve", answer::set);
+        assertEquals(NameLookup.Status.FOUND, answer.get().status());
+        assertEquals(profile, answer.get().profile());
+    }
+
+    @Test
+    void anUnknownNameIsNotFoundAndNothingIsInvented() {
+        NameLookup lookup = lookup(name -> Optional.empty());
+        AtomicReference<NameLookup.Answer> answer = new AtomicReference<>();
+        lookup.lookup("SpawnNeverSeen", answer::set);
+        assertEquals(NameLookup.Status.NOT_FOUND, answer.get().status());
+        assertEquals(null, answer.get().profile());
+    }
+
+    @Test
+    void aFailingRepositoryIsReportedAsFailed() {
+        NameLookup lookup =
+                lookup(
+                        name -> {
+                            throw new IllegalStateException("the service is down");
+                        });
+        AtomicReference<NameLookup.Answer> answer = new AtomicReference<>();
+        lookup.lookup("Steve", answer::set);
+        assertEquals(NameLookup.Status.FAILED, answer.get().status());
+    }
+
+    @Test
+    void theServerStopsAskingMojangAfterItsShareOfTheLimit() {
+        NameAndId profile = new NameAndId(UUID.randomUUID(), "Steve");
+        NameLookup lookup = lookup(name -> Optional.of(profile));
+        for (int use = 0; use < 100; use++) {
+            AtomicReference<NameLookup.Answer> answer = new AtomicReference<>();
+            lookup.lookup("Steve", answer::set);
+            assertEquals(NameLookup.Status.FOUND, answer.get().status(), "lookup " + use);
+        }
+        AtomicReference<NameLookup.Answer> answer = new AtomicReference<>();
+        lookup.lookup("Steve", answer::set);
+        assertEquals(NameLookup.Status.TOO_MANY, answer.get().status());
+    }
+
+    @Test
+    void theAnswerArrivesOnlyWhenTheWorkerAndTheServerThreadRun() {
+        NameAndId profile = new NameAndId(UUID.randomUUID(), "Steve");
+        AtomicReference<Runnable> queued = new AtomicReference<>();
+        NameLookup lookup =
+                new NameLookup(
+                        name -> Optional.of(profile), queued::set, runnable -> runnable.run());
+        AtomicReference<NameLookup.Answer> answer = new AtomicReference<>();
+        lookup.lookup("Steve", answer::set);
+        assertEquals(null, answer.get(), "nothing may reach the player before the lookup runs");
+        queued.get().run();
+        assertEquals(NameLookup.Status.FOUND, answer.get().status());
+    }
+
+    @Test
+    void aPlayerKeepsTheNewestNamesAndRepeatsMoveToTheFront() {
+        SpawnAccessData data = new SpawnAccessData();
+        UUID guest = UUID.randomUUID();
+        data.sawName(guest, "Alex", 1_000);
+        data.sawName(guest, "Steve", 2_000);
+        assertEquals(
+                List.of(
+                        new SpawnAccessData.SeenName("Steve", 2_000),
+                        new SpawnAccessData.SeenName("Alex", 1_000)),
+                data.names(guest));
+        data.sawName(guest, "Alex", 3_000);
+        assertEquals(
+                List.of(
+                        new SpawnAccessData.SeenName("Alex", 3_000),
+                        new SpawnAccessData.SeenName("Steve", 2_000)),
+                data.names(guest));
+    }
+
+    @Test
+    void nameHistorySurvivesSerialization() {
+        SpawnAccessData data = new SpawnAccessData();
+        UUID owner = UUID.randomUUID();
+        UUID guest = UUID.randomUUID();
+        data.grant(owner, List.of(guest));
+        data.sawName(guest, "Alex", 1_000);
+        data.sawName(guest, "Steve", 2_000);
+        var json = SpawnAccessData.TYPE.codec().encodeStart(JsonOps.INSTANCE, data).getOrThrow();
+        SpawnAccessData restored =
+                SpawnAccessData.TYPE.codec().parse(JsonOps.INSTANCE, json).getOrThrow();
+        assertEquals(data.names(guest), restored.names(guest));
+        assertTrue(restored.allows(owner, guest));
+    }
+
+    /** A server whose data has no name history still loads; the field is optional. */
+    @Test
+    void sharesSavedBeforeTheHistoryLoadWithoutIt() {
+        String owner = "00000000-0000-0000-0000-000000000001";
+        String guest = "00000000-0000-0000-0000-000000000002";
+        String json = "{\"shares\":{\"" + owner + "\":[\"" + guest + "\"]}}";
+        SpawnAccessData data =
+                SpawnAccessData.TYPE
+                        .codec()
+                        .parse(JsonOps.INSTANCE, JsonParser.parseString(json))
+                        .getOrThrow();
+        assertTrue(data.allows(UUID.fromString(owner), UUID.fromString(guest)));
+        assertTrue(data.names(UUID.fromString(guest)).isEmpty());
+    }
+
+    @Test
+    void aGuestIsFoundByANameOnlyItsHistoryHolds() {
+        SpawnAccessData data = new SpawnAccessData();
+        UUID owner = UUID.randomUUID();
+        UUID renamed = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+        data.grant(owner, List.of(renamed, other));
+        data.sawName(renamed, "Alex", 1_000);
+        data.sawName(renamed, "Steve", 2_000);
+        assertEquals(List.of(renamed), data.guestsNamed(owner, "alex"));
+        assertEquals(List.of(renamed), data.guestsNamed(owner, "Steve"));
+        assertTrue(data.guestsNamed(owner, "SpawnNeverSeen").isEmpty());
+    }
+
+    @Test
+    void aSecondUseInTheSameSecondIsRefused() {
+        long[] now = {0};
+        ShareRateLimit limit = new ShareRateLimit(() -> now[0]);
+        UUID player = UUID.randomUUID();
+        assertEquals(0, limit.refuse(player));
+        assertEquals(1_000_000_000L, limit.refuse(player));
+        assertEquals(0, limit.refuse(UUID.randomUUID()), "another player has their own allowance");
+        now[0] = 1_000_000_000L;
+        assertEquals(0, limit.refuse(player));
+    }
+
+    @Test
+    void theMinuteLimitCountsTwenty() {
+        long[] now = {0};
+        ShareRateLimit limit = new ShareRateLimit(() -> now[0]);
+        UUID player = UUID.randomUUID();
+        for (int use = 0; use < 20; use++) {
+            assertEquals(0, limit.refuse(player), "use " + use);
+            now[0] += 1_000_000_000L;
+        }
+        assertEquals(40_000_000_000L, limit.refuse(player), "the first use leaves the minute");
+        // A refused use is not counted, so trying again does not push the wait further out.
+        assertEquals(40_000_000_000L, limit.refuse(player));
+    }
+
+    @Test
+    void theHourLimitCountsFourHundred() {
+        long[] now = {0};
+        ShareRateLimit limit = new ShareRateLimit(() -> now[0]);
+        UUID player = UUID.randomUUID();
+        // Four seconds apart, so the minute limit (20) is never reached before the hour's 400.
+        for (int use = 0; use < 400; use++) {
+            assertEquals(0, limit.refuse(player), "use " + use);
+            now[0] += 4_000_000_000L;
+        }
+        assertEquals(2_000_000_000_000L, limit.refuse(player), "the first use leaves the hour");
+    }
+
+    @Test
+    void theWaitIsDescribedInWholeSeconds() {
+        assertEquals("1 second", ShareRateLimit.describe(1));
+        assertEquals("1 second", ShareRateLimit.describe(1_000_000_000L));
+        assertEquals("2 seconds", ShareRateLimit.describe(1_500_000_000L));
+    }
+
+    private static NameLookup lookup(NameLookup.Repository repository) {
+        java.util.concurrent.Executor direct = Runnable::run;
+        return new NameLookup(repository, direct, direct);
     }
 }
