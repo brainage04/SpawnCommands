@@ -1860,6 +1860,13 @@ public final class SpawnCommandsGameTests {
                                                 .anyMatch(seen -> seen.name().equals("SpawnGhost")),
                                         "The answer must be recorded in the name history");
                                 helper.assertTrue(
+                                        server.services()
+                                                .nameToIdCache()
+                                                .get(profile.getId())
+                                                .isPresent(),
+                                        "A found answer must cache the name, so the next command"
+                                                + " answers without a lookup");
+                                helper.assertTrue(
                                         owner.messageTexts()
                                                 .contains(
                                                         "[SpawnCommands] Shared your spawn with 1"
@@ -1909,9 +1916,11 @@ public final class SpawnCommandsGameTests {
                     "A stale answer must share nothing, got " + access.guests(player.getUUID()));
             // The name is cached so the retry answers at once. The GameTest server's cache is an
             // in-memory mock that never writes usercache.json (GameTestServer.java:80,416-441), so
-            // the retry itself cannot be run here; the cache entry is what makes it work.
+            // the retry itself cannot be run here; the cache entry is what makes it work. The
+            // lookup by id is the one that can fail: the mock invents an entry for any name
+            // (GameTestServer.java:425-427) but answers by id only for what was added.
             helper.assertTrue(
-                    server.services().nameToIdCache().get("SpawnLate").isPresent(),
+                    server.services().nameToIdCache().get(profile.getId()).isPresent(),
                     "A stale answer must cache the name so the retry answers at once");
             helper.assertTrue(
                     lookups[0] == 1, "The stale answer must be the only lookup, got " + lookups[0]);
@@ -2077,9 +2086,13 @@ public final class SpawnCommandsGameTests {
                                             "/spawnshare revoke " + renamed,
                                             "/spawnshare revoke " + holder)),
                     "Each match must carry a revoke button for its own id, got " + clicks);
+            // The click runs in the same second as the list, through execute() rather than
+            // share(), so the allowance the list would have spent is the point of the step.
             helper.assertTrue(
-                    share(player, "spawnshare revoke " + renamed) == 1,
-                    "A clicked revoke must revoke the guest whose id it names");
+                    execute(player, "spawnshare revoke " + renamed) == 1,
+                    "A clicked revoke must revoke the guest whose id it names, and the list may not"
+                            + " spend the allowance the click needs, got "
+                            + owner.messageTexts());
             helper.assertTrue(
                     access.guests(player.getUUID()).equals(List.of(holder)),
                     "Only the clicked guest may be revoked, got "

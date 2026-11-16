@@ -192,21 +192,33 @@ public final class SpawnCommandRegistration {
         ServerPlayer owner = SpawnCommands.FEEDBACK.requirePlayer(source);
         if (owner == null) return 0;
         MinecraftServer server = source.getServer();
-        long wait = ShareRateLimit.of(server).refuse(owner.getUUID());
-        if (wait > 0) {
-            return SpawnCommands.FEEDBACK.failure(
-                    source, "You can use /spawnshare again in %s.", ShareRateLimit.describe(wait));
-        }
         SpawnAccessData access = SpawnAccessData.get(server);
         GameProfileArgument.Result result =
                 context.getArgument("players", GameProfileArgument.Result.class);
         if (result instanceof GameProfileArgument.SelectorResult) {
-            return apply(source, owner, access, grant, result.getNames(source));
+            Collection<NameAndId> named = result.getNames(source);
+            if (!charged(server, source, owner)) return 0;
+            return apply(source, owner, access, grant, named);
         }
         String typed = typedArgument(context, "players");
         return grant
                 ? grantTyped(server, source, owner, access, typed)
                 : revokeTyped(server, source, owner, access, typed);
+    }
+
+    /**
+     * Counts this use against the player's allowance, or answers false and says how long to wait.
+     * Every use that changes access is counted, whichever name it was given; a use that changes
+     * nothing must not be, or the [Revoke] button the ambiguous list prints would be refused for a
+     * second because the list itself, which changes nothing, spent the use.
+     */
+    private static boolean charged(
+            MinecraftServer server, CommandSourceStack source, ServerPlayer owner) {
+        long wait = ShareRateLimit.of(server).refuse(owner.getUUID());
+        if (wait == 0) return true;
+        SpawnCommands.FEEDBACK.failure(
+                source, "You can use /spawnshare again in %s.", ShareRateLimit.describe(wait));
+        return false;
     }
 
     /**
@@ -221,14 +233,21 @@ public final class SpawnCommandRegistration {
             SpawnAccessData access,
             String typed) {
         List<NameAndId> matches = named(server, typed);
-        if (!matches.isEmpty()) return apply(source, owner, access, true, matches);
+        if (!matches.isEmpty()) {
+            if (!charged(server, source, owner)) return 0;
+            return apply(source, owner, access, true, matches);
+        }
         UUID id = parseUuid(typed);
         if (id != null) {
             List<NameAndId> cached = List.copyOf(cachedNames(server, List.of(id)));
-            if (!cached.isEmpty()) return apply(source, owner, access, true, cached);
+            if (!cached.isEmpty()) {
+                if (!charged(server, source, owner)) return 0;
+                return apply(source, owner, access, true, cached);
+            }
             return SpawnCommands.FEEDBACK.failure(
                     source, "No player with the id '%s' has joined this server.", typed);
         }
+        if (!charged(server, source, owner)) return 0;
         SpawnCommands.FEEDBACK.neutral(source, "Looking up %s...", typed);
         UUID ownerId = owner.getUUID();
         // The answer arrives on the server thread later, so the command's result is 1 (accepted)
@@ -279,7 +298,7 @@ public final class SpawnCommandRegistration {
                     SpawnCommands.FEEDBACK.failure(
                             source,
                             "Too many name lookups on this server right now. Try again in a"
-                                    + " minute.");
+                                    + " couple of minutes.");
         };
     }
 
@@ -301,6 +320,7 @@ public final class SpawnCommandRegistration {
                 return SpawnCommands.FEEDBACK.failure(
                         source, "That player does not have access to your spawn.");
             }
+            if (!charged(server, source, owner)) return 0;
             return report(source, access.revoke(ownerId, List.of(id)), false);
         }
         List<UUID> matches = new ArrayList<>(access.guestsNamed(ownerId, typed));
@@ -311,6 +331,7 @@ public final class SpawnCommandRegistration {
         }
         if (matches.isEmpty()) return revokeFoundByName(server, source, owner, typed);
         if (matches.size() == 1) {
+            if (!charged(server, source, owner)) return 0;
             return report(source, access.revoke(ownerId, List.of(matches.getFirst())), false);
         }
         SpawnCommands.FEEDBACK.neutral(
@@ -331,6 +352,7 @@ public final class SpawnCommandRegistration {
     private static int revokeFoundByName(
             MinecraftServer server, CommandSourceStack source, ServerPlayer owner, String typed) {
         UUID ownerId = owner.getUUID();
+        if (!charged(server, source, owner)) return 0;
         SpawnCommands.FEEDBACK.neutral(source, "Looking up %s...", typed);
         int[] outcome = {1};
         NameLookup.of(server)
@@ -386,7 +408,7 @@ public final class SpawnCommandRegistration {
                     SpawnCommands.FEEDBACK.failure(
                             source,
                             "Too many name lookups on this server right now. Try again in a"
-                                    + " minute.");
+                                    + " couple of minutes.");
         };
     }
 
