@@ -104,11 +104,12 @@ class SpawnCommandsTest {
         SpawnAccessData data = result.resultOrPartial(error -> {}).orElseThrow();
         assertTrue(data.allows(UUID.fromString(owner), UUID.fromString(guest)));
     }
+
     /**
      * A dedicated server keeps {@code usercache.json} in the universe directory, and the world
      * directory is its child ({@code Main.java:126-130}, {@code LevelStorageSource.java:129-131}):
-     * a server started with a non-default {@code --universe} has no cache where
-     * {@code getServerDirectory()} points, so the parent of the world directory answers.
+     * a server started with a non-default {@code --universe} has no cache where {@code
+     * getServerDirectory()} points, so the parent of the world directory answers.
      */
     @Test
     void findsTheCacheInTheUniverseDirectoryOfAServerStartedElsewhere(@TempDir Path root)
@@ -155,7 +156,8 @@ class SpawnCommandsTest {
 
         assertEquals(
                 Optional.of(root.resolve("usercache.json")),
-                ServerNameCache.cacheFile(root.resolve("elsewhere"), Optional.of(world.resolve("."))));
+                ServerNameCache.cacheFile(
+                        root.resolve("elsewhere"), Optional.of(world.resolve("."))));
     }
 
     @Test
