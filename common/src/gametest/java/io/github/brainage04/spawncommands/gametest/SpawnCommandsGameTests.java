@@ -20,6 +20,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -699,13 +700,28 @@ public final class SpawnCommandsGameTests {
     }
 
     private static void writeCache(MinecraftServer server, UUID id, String name) {
+        writeCache(server, Map.of(id, name));
+    }
+
+    /**
+     * Writes a name cache holding exactly {@code names}, so a player who left can still be named.
+     * Call it after the test's last join: a join saves the cache from memory
+     * (PlayerList.java:149-152, CachedUserNameToIdResolver.java:88-95) and would drop these
+     * entries.
+     */
+    private static void writeCache(MinecraftServer server, Map<UUID, String> names) {
         Path file = server.getServerDirectory().resolve("usercache.json");
+        String entries =
+                names.entrySet().stream()
+                        .map(
+                                entry ->
+                                        ("{\"name\":\"%s\",\"uuid\":\"%s\","
+                                                        + "\"expiresOn\":\"2099-01-01 00:00:00"
+                                                        + " +0000\"}")
+                                                .formatted(entry.getValue(), entry.getKey()))
+                        .collect(Collectors.joining(",", "[", "]"));
         try {
-            Files.writeString(
-                    file,
-                    ("[{\"name\":\"%s\",\"uuid\":\"%s\","
-                                    + "\"expiresOn\":\"2099-01-01 00:00:00 +0000\"}]")
-                            .formatted(name, id));
+            Files.writeString(file, entries);
         } catch (IOException exception) {
             throw new AssertionError("Cannot write " + file, exception);
         }
@@ -1557,6 +1573,7 @@ public final class SpawnCommandsGameTests {
             helper.assertTrue(
                     server.getPlayerList().getPlayer(ownerId) == null,
                     "The owner must be offline for this test");
+            writeCache(server, Map.of(ownerId, "SpawnOffKeeper"));
             ServerPlayer guestPlayer = guest.player();
             guestPlayer.teleportTo(expected.x() + 20.0D, expected.y(), expected.z() + 20.0D);
             guest.clearMessages();
@@ -1589,8 +1606,12 @@ public final class SpawnCommandsGameTests {
         BlockPos bed = helper.absolutePos(new BlockPos(2, 1, 2));
         try (GameTestPlayer guest = GameTestPlayer.join(helper, "SpawnOffDenied")) {
             ServerPlayer guestPlayer = guest.player();
+            UUID brokenBed;
+            UUID noSpawn;
+            UUID unshared;
             // A bed the owner slept in that is gone by the time the guest arrives.
             try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnOffBed")) {
+                brokenBed = owner.player().getUUID();
                 owner.player()
                         .setRespawnPosition(
                                 new ServerPlayer.RespawnConfig(
@@ -1602,8 +1623,33 @@ public final class SpawnCommandsGameTests {
                         execute(owner.player(), "spawnshare SpawnOffDenied") == 1,
                         "Sharing with the guest must work");
             }
+            // An owner who never set a spawn.
+            try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnOffNoSpawn")) {
+                noSpawn = owner.player().getUUID();
+                helper.assertTrue(
+                        execute(owner.player(), "spawnshare SpawnOffDenied") == 1,
+                        "Sharing with the guest must work");
+            }
+            // An offline owner who never shared with this guest.
+            try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnOffUnshared")) {
+                unshared = owner.player().getUUID();
+                owner.player()
+                        .setRespawnPosition(
+                                new ServerPlayer.RespawnConfig(
+                                        LevelData.RespawnData.of(
+                                                level.dimension(), bed, 0.0F, 0.0F),
+                                        true),
+                                false);
+            }
             helper.setBlock(new BlockPos(2, 1, 1), Blocks.AIR);
             helper.setBlock(new BlockPos(2, 1, 2), Blocks.AIR);
+            // After the last join, which saves the cache from memory and would drop these names.
+            writeCache(
+                    server,
+                    Map.of(
+                            brokenBed, "SpawnOffBed",
+                            noSpawn, "SpawnOffNoSpawn",
+                            unshared, "SpawnOffUnshared"));
             Vec3 before = guestPlayer.position();
             guest.clearMessages();
             helper.assertTrue(
@@ -1614,15 +1660,6 @@ public final class SpawnCommandsGameTests {
                     guest,
                     "[SpawnCommands] SpawnOffBed's spawn point is missing or obstructed.",
                     0xFF5555);
-            helper.assertTrue(
-                    guestPlayer.position().equals(before), "A refusal must not move the guest");
-
-            // An owner who never set a spawn.
-            try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnOffNoSpawn")) {
-                helper.assertTrue(
-                        execute(owner.player(), "spawnshare SpawnOffDenied") == 1,
-                        "Sharing with the guest must work");
-            }
             guest.clearMessages();
             helper.assertTrue(
                     execute(guestPlayer, "spawnof SpawnOffNoSpawn") == 0,
@@ -1632,17 +1669,6 @@ public final class SpawnCommandsGameTests {
                     guest,
                     "[SpawnCommands] SpawnOffNoSpawn does not have a personal spawn point.",
                     0xFF5555);
-
-            // An offline owner who never shared with this guest.
-            try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnOffUnshared")) {
-                owner.player()
-                        .setRespawnPosition(
-                                new ServerPlayer.RespawnConfig(
-                                        LevelData.RespawnData.of(
-                                                level.dimension(), bed, 0.0F, 0.0F),
-                                        true),
-                                false);
-            }
             guest.clearMessages();
             helper.assertTrue(
                     execute(guestPlayer, "spawnof SpawnOffUnshared") == 0,
@@ -1652,7 +1678,6 @@ public final class SpawnCommandsGameTests {
                     guest,
                     "[SpawnCommands] SpawnOffUnshared has not shared their spawn with you.",
                     0xFF5555);
-
             // A name no player has used on this server.
             guest.clearMessages();
             helper.assertTrue(
@@ -1661,12 +1686,11 @@ public final class SpawnCommandsGameTests {
             assertMessage(
                     helper,
                     guest,
-                    "[SpawnCommands] No player named 'SpawnOffUnknown' has joined this"
-                            + " server.",
+                    "[SpawnCommands] No player named 'SpawnOffUnknown' has joined this server.",
                     0xFF5555);
             helper.assertTrue(
-                    server.getPlayerList().getPlayer(guestPlayer.getUUID()) == guestPlayer,
-                    "Refusals must leave the guest on the player list");
+                    guestPlayer.position().equals(before),
+                    "Refusals must not move the guest");
         }
         helper.succeed();
     }
@@ -1710,6 +1734,7 @@ public final class SpawnCommandsGameTests {
             helper.assertTrue(
                     helper.getLevel().getServer().getPlayerList().getPlayer(ownerId) == null,
                     "The owner must be offline for this test");
+            writeCache(helper.getLevel().getServer(), Map.of(ownerId, "SpawnOffNOwner"));
             Vec3 expected =
                     new Vec3(spawn.getX() + 0.5D, spawn.getY() + 0.1D, spawn.getZ() + 0.5D);
             helper.assertTrue(
