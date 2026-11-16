@@ -100,7 +100,8 @@ public final class ShareRateLimit {
     }
 
     /**
-     * Clears both allowances for {@code server}: the share allowance and the /spawnof lookup one.
+     * Clears every allowance for {@code server}: the share, /spawnof lookup and candidate-list
+     * ones.
      */
     public static void clearAll(MinecraftServer server) {
         of(server).clear();

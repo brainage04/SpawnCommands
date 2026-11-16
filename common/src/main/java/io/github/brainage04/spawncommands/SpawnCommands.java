@@ -43,8 +43,12 @@ public final class SpawnCommands {
         access.pruneNames(guestsAndOnline(server, access));
     }
 
-    /** Every account a share list can show: the guests of any owner, and the players online now. */
-    private static Set<UUID> guestsAndOnline(MinecraftServer server, SpawnAccessData access) {
+    /**
+     * The accounts whose history must survive a prune: the guests of any owner, and the players
+     * online now. A cached account that is neither keeps its history only while it is among the
+     * newest 1000 entries.
+     */
+    static Set<UUID> guestsAndOnline(MinecraftServer server, SpawnAccessData access) {
         Set<UUID> keep = new HashSet<>(access.allGuests());
         for (ServerPlayer online : server.getPlayerList().getPlayers()) {
             keep.add(online.getUUID());
