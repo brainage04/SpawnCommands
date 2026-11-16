@@ -71,6 +71,11 @@ public final class SpawnCommandsGameTest {
     }
 
     @GameTest
+    public void spawnofResolvesAUuidAndRefusesASelectorNamingTwoPlayers(GameTestHelper helper) {
+        SpawnCommandsGameTests.spawnofResolvesAUuidAndRefusesASelectorNamingTwoPlayers(helper);
+    }
+
+    @GameTest
     public void anOfflineOwnersSpawnInAnotherDimensionIsReachable(GameTestHelper helper) {
         SpawnCommandsGameTests.anOfflineOwnersSpawnInAnotherDimensionIsReachable(helper);
     }

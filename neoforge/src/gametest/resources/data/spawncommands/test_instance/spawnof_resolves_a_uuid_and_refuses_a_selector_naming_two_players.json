@@ -1,0 +1,7 @@
+{
+  "environment": "minecraft:default",
+  "structure": "minecraftmodconventions:empty",
+  "max_ticks": 20,
+  "type": "minecraft:function",
+  "function": "spawncommands:spawnof_resolves_a_uuid_and_refuses_a_selector_naming_two_players"
+}

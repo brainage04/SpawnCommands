@@ -12,6 +12,7 @@ import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import io.github.brainage04.brainagelib.help.HelpPage;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import net.minecraft.commands.CommandSourceStack;
@@ -115,21 +116,38 @@ public final class SpawnCommandRegistration {
             if (named.size() > 1) throw EntityArgument.ERROR_NOT_SINGLE_PLAYER.create();
             return named.iterator().next();
         }
-        // GameProfileArgument resolves a typed name through the name cache, and for one it has not
+        // A typed name or UUID parses to a lookup through the name cache, and for a name it has not
         // cached that asks Mojang's profile service on the server thread and writes the answer to
         // usercache.json (GameProfileArgument.java:63-66, CachedUserNameToIdResolver.java:63-69,
-        // 118-120). A name this server has never seen must be refused instead, as /spawnshare does.
+        // 118-120). A name this server has never seen must be refused instead, as /spawnshare does,
+        // so the argument is matched against the cached names as the text typed.
         String typed = typedArgument(context, "player");
         List<NameAndId> known =
                 ServerNameCache.known(source.getServer()).stream()
                         .filter(candidate -> candidate.name().equalsIgnoreCase(typed))
                         .toList();
-        if (known.isEmpty()) {
+        if (!known.isEmpty()) return known.getFirst();
+        UUID typedId;
+        try {
+            typedId = UUID.fromString(typed);
+        } catch (IllegalArgumentException notAUuid) {
             SpawnCommands.FEEDBACK.failure(
                     source, "No player named '%s' has joined this server.", typed);
             return null;
         }
-        return known.getFirst();
+        // A UUID names an online player, as EntityArgument.player() resolved one
+        // (EntitySelector.java:214-217), and an offline player the server has seen.
+        ServerPlayer byId = source.getServer().getPlayerList().getPlayer(typedId);
+        if (byId != null) return byId.nameAndId();
+        Optional<NameAndId> cached =
+                ServerNameCache.known(source.getServer()).stream()
+                        .filter(candidate -> candidate.id().equals(typedId))
+                        .findFirst();
+        if (cached.isEmpty()) {
+            SpawnCommands.FEEDBACK.failure(
+                    source, "No player named '%s' has joined this server.", typed);
+        }
+        return cached.orElse(null);
     }
 
     private static int changeAccess(CommandContext<CommandSourceStack> context, boolean grant)

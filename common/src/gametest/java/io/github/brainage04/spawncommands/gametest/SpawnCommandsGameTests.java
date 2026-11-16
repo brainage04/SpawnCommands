@@ -1693,6 +1693,82 @@ public final class SpawnCommandsGameTests {
         helper.succeed();
     }
 
+    public static void spawnofResolvesAUuidAndRefusesASelectorNamingTwoPlayers(
+            GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerLevel level = helper.getLevel();
+        BlockPos spawn = helper.absolutePos(new BlockPos(3, 2, 3));
+        try (GameTestPlayer guest = GameTestPlayer.join(helper, "SpawnOffByGuest");
+                GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnOffByOwner")) {
+            ServerPlayer ownerPlayer = owner.player();
+            ownerPlayer.setRespawnPosition(
+                    new ServerPlayer.RespawnConfig(
+                            LevelData.RespawnData.of(level.dimension(), spawn, 0.0F, 0.0F), true),
+                    false);
+            helper.assertTrue(
+                    execute(ownerPlayer, "spawnshare " + guest.player().getScoreboardName()) == 1,
+                    "Sharing with the guest must work");
+            ServerPlayer guestPlayer = guest.player();
+            Vec3 expected = new Vec3(spawn.getX() + 0.5D, spawn.getY() + 0.1D, spawn.getZ() + 0.5D);
+            guestPlayer.teleportTo(expected.x() + 20.0D, expected.y(), expected.z() + 20.0D);
+            helper.assertTrue(
+                    execute(guestPlayer, "spawnof " + ownerPlayer.getUUID()) == 1,
+                    "A UUID must name the owner, as EntityArgument.player() resolved one");
+            helper.assertTrue(
+                    guestPlayer.position().equals(expected),
+                    "A UUID must reach the owner's spawn at "
+                            + expected
+                            + " but landed on "
+                            + guestPlayer.position());
+            // A selector naming one player still works; one naming two is refused as
+            // EntityArgument.player() refused it while parsing (EntityArgument.java:115-120), and
+            // one naming no player as its NO_PLAYERS_FOUND.
+            String ownerTag = "spawncommands-offline-owner-" + ownerPlayer.getUUID();
+            String guestTag = "spawncommands-offline-guest-" + guestPlayer.getUUID();
+            ownerPlayer.addTag(ownerTag);
+            guestPlayer.addTag(guestTag);
+            String sharedTag = "spawncommands-offline-both";
+            ownerPlayer.addTag(sharedTag);
+            guestPlayer.addTag(sharedTag);
+            try {
+                Vec3 before = guestPlayer.position();
+                helper.assertTrue(
+                        execute(
+                                        withServerPermissions(guestPlayer),
+                                        "spawnof @a[tag=" + ownerTag + "]")
+                                == 1,
+                        "A selector naming one player must still work");
+                helper.assertTrue(
+                        guestPlayer.position().equals(expected),
+                        "A selector naming one player must reach the owner's spawn");
+                assertRefused(helper, guestPlayer, "spawnof @e[type=player,limit=1]", before);
+                assertRefused(helper, guestPlayer, "spawnof @a[tag=" + sharedTag + "]", before);
+                assertRefused(helper, guestPlayer, "spawnof @a[tag=spawncommands-nobody]", before);
+            } finally {
+                ownerPlayer.removeTag(ownerTag);
+                guestPlayer.removeTag(guestTag);
+                ownerPlayer.removeTag(sharedTag);
+                guestPlayer.removeTag(sharedTag);
+            }
+        }
+        helper.succeed();
+    }
+
+    /** Runs {@code command} and asserts the dispatcher refuses it, leaving the player in place. */
+    private static void assertRefused(
+            GameTestHelper helper, ServerPlayer player, String command, Vec3 before) {
+        boolean refused;
+        try {
+            execute(withServerPermissions(player), command);
+            refused = false;
+        } catch (AssertionError failure) {
+            refused = true;
+        }
+        helper.assertTrue(refused, "/" + command + " must be refused");
+        helper.assertTrue(
+                player.position().equals(before), "/" + command + " must not move the player");
+    }
+
     public static void anOfflineOwnersSpawnInAnotherDimensionIsReachable(GameTestHelper helper) {
         ServerLevel nether =
                 helper.getLevel().getServer().getLevel(net.minecraft.world.level.Level.NETHER);

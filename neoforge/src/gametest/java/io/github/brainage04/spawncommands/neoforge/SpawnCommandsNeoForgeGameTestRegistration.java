@@ -147,6 +147,10 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 SpawnCommandsGameTests::offlineOwnerSpawnRefusalsMatchOnlineOnes);
         register(
                 event,
+                "spawnof_resolves_a_uuid_and_refuses_a_selector_naming_two_players",
+                SpawnCommandsGameTests::spawnofResolvesAUuidAndRefusesASelectorNamingTwoPlayers);
+        register(
+                event,
                 "an_offline_owners_spawn_in_another_dimension_is_reachable",
                 SpawnCommandsGameTests::anOfflineOwnersSpawnInAnotherDimensionIsReachable);
         register(
