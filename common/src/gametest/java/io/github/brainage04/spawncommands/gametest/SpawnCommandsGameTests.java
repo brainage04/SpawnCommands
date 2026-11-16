@@ -2237,8 +2237,11 @@ public final class SpawnCommandsGameTests {
             ServerPlayer player = owner.player();
             long now = System.currentTimeMillis();
             long seenAt = now - 1_000L;
+            // The listed account's newest join name differs from the name usercache.json holds, so
+            // the line can only show the join name if it reads the history rather than the match.
             access.sawName(renamed, "SpawnFirst", now - 86_400_000L);
             access.sawName(renamed, "SpawnBoth", seenAt);
+            access.sawName(renamed, "SpawnNow", now - 500L);
             access.sawName(holder, "SpawnBoth", seenAt);
             // Written after the join, which saves the cache from memory and would drop these.
             writeCache(server, Map.of(renamed, "SpawnBoth", holder, "SpawnBoth"));
@@ -2278,10 +2281,14 @@ public final class SpawnCommandsGameTests {
                             && lines.stream()
                                     .anyMatch(
                                             line ->
-                                                    line.contains("SpawnBoth")
+                                                    line.startsWith(" SpawnNow")
                                                             && line.contains(
-                                                                    "previous name SpawnFirst")),
-                    "Each match must list its other names, got " + lines);
+                                                                    "previous name SpawnBoth,"
+                                                                            + " SpawnFirst"))
+                            && lines.stream().anyMatch(line -> line.startsWith(" SpawnBoth")),
+                    "Each match must show the name the account last joined under, with its other"
+                            + " names, got "
+                            + lines);
             helper.assertTrue(
                     clicks.size() == 2
                             && clicks.containsAll(
@@ -2406,17 +2413,19 @@ public final class SpawnCommandsGameTests {
             }
             // The join hook prunes, so recording every join cannot grow the saved data without
             // bound. Seeded past the cap rather than joined, which would need 1001 logins. The
-            // fillers are newer than the owner's own join and than the guest's, so each survives
-            // only through the keep set: the owner as an online player, the guest as a guest.
+            // fillers carry times in the past, so a history a later test records at the real time
+            // is never older than them. The owner's own history is older still, so it survives
+            // only through the keep set: as an online player.
             UUID oldest = UUID.randomUUID();
             access.recordJoin(oldest, "SpawnOldest", 1L);
             UUID oldGuest = UUID.randomUUID();
             access.grant(owner.player().getUUID(), List.of(oldGuest));
             access.recordJoin(oldGuest, "SpawnOldGuest", 2L);
-            long newest = System.currentTimeMillis() + 1_000L;
+            long seeded = before - 10_000L;
             for (int use = 0; use < 1_001; use++) {
-                access.recordJoin(UUID.randomUUID(), "SpawnFiller" + use, newest + use);
+                access.recordJoin(UUID.randomUUID(), "SpawnFiller" + use, seeded + use);
             }
+            access.recordJoin(owner.player().getUUID(), "SpawnKeeper", before - 20_000L);
             try (GameTestPlayer pruner =
                     GameTestPlayer.join(
                             helper, new GameProfile(UUID.randomUUID(), "SpawnPruner"))) {
@@ -2437,9 +2446,9 @@ public final class SpawnCommandsGameTests {
             UUID granted = UUID.randomUUID();
             access.recordJoin(granted, "SpawnGranted", 1L);
             UUID firstLater = UUID.randomUUID();
-            access.recordJoin(firstLater, "SpawnLater0", newest);
-            for (int use = 1; use < 1_001; use++) {
-                access.recordJoin(UUID.randomUUID(), "SpawnLater" + use, newest + use);
+            access.recordJoin(firstLater, "SpawnLater0", 3L);
+            for (int use = 0; use < 1_001; use++) {
+                access.recordJoin(UUID.randomUUID(), "SpawnLater" + use, seeded + 2_000L + use);
             }
             helper.assertTrue(
                     share(owner.player(), "spawnshare " + granted) == 1,

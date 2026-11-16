@@ -548,8 +548,8 @@ public final class SpawnCommandRegistration {
     }
 
     /**
-     * The name to show for an account: the newest one the server saw it under, else the newest one
-     * recorded, else its cached name.
+     * The name to show for an account: the newest one the server saw it under, else the first name
+     * recorded for it, else its cached name.
      */
     private static String displayName(MinecraftServer server, SpawnAccessData access, UUID id) {
         List<SpawnAccessData.SeenName> seen = access.names(id);
