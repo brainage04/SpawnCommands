@@ -2313,11 +2313,11 @@ public final class SpawnCommandsGameTests {
             ServerPlayer player = owner.player();
             access.grant(player.getUUID(), List.of(guest));
             long now = System.currentTimeMillis();
-            access.sawName(guest, "SpawnFirst", now - 86_400_000L);
-            access.sawName(guest, "SpawnBoth", now);
+            access.sawName(guest, "SpawnSoloOld", now - 86_400_000L);
+            access.sawName(guest, "SpawnSolo", now);
             owner.clearMessages();
             helper.assertTrue(
-                    share(player, "spawnshare revoke SpawnBoth") == 1,
+                    share(player, "spawnshare revoke SpawnSolo") == 1,
                     "A single match must revoke the guest");
             helper.assertTrue(
                     access.guests(player.getUUID()).isEmpty(),
@@ -2328,8 +2328,8 @@ public final class SpawnCommandsGameTests {
                     "The revoke must still report what it did, got " + texts);
             String named = texts.getLast();
             helper.assertTrue(
-                    named.startsWith(" SpawnBoth")
-                            && named.contains("previous name SpawnFirst")
+                    named.startsWith(" SpawnSolo")
+                            && named.contains("previous name SpawnSoloOld")
                             && named.contains("last seen "),
                     "The revoke must name the account it revoked, got " + texts);
         }
