@@ -248,7 +248,9 @@ class SpawnCommandsTest {
                 new NameLookup.Answer(NameLookup.Status.FOUND, profile),
                 NameLookup.find(
                         repository(
-                                callback -> callback.onProfileLookupSucceeded("Steve", profile.id())),
+                                callback ->
+                                        callback.onProfileLookupSucceeded(
+                                                "Steve", profile.id())),
                         "steve"));
         assertEquals(
                 NameLookup.Status.NOT_FOUND,
@@ -257,7 +259,8 @@ class SpawnCommandsTest {
                                         callback ->
                                                 callback.onProfileLookupFailed(
                                                         "steve",
-                                                        new ProfileNotFoundException("no such name"))),
+                                                        new ProfileNotFoundException(
+                                                                "no such name"))),
                                 "steve")
                         .status());
         assertEquals(
