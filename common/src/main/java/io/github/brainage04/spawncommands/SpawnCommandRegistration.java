@@ -105,17 +105,17 @@ public final class SpawnCommandRegistration {
             // (GameProfileArgument.java:100-103), as EntityArgument.player() answered.
             Collection<NameAndId> named = selector.getNames(source);
             if (named.size() > 1) throw EntityArgument.ERROR_NOT_SINGLE_PLAYER.create();
-            return arrive(guest, named.iterator().next());
+            return arrive(guest, List.copyOf(named));
         }
         String typed = typedArgument(context, "player");
         List<NameAndId> known = named(server, typed);
-        if (!known.isEmpty()) return arrive(guest, known.getFirst());
+        if (!known.isEmpty()) return arrive(guest, known);
         UUID typedId = parseUuid(typed);
         if (typedId != null) {
             // A UUID names an online player, as EntityArgument.player() resolved one
             // (EntitySelector.java:214-217), and an offline player the server has seen.
             ServerPlayer byId = server.getPlayerList().getPlayer(typedId);
-            if (byId != null) return arrive(guest, byId.nameAndId());
+            if (byId != null) return arrive(guest, List.of(byId.nameAndId()));
             Optional<NameAndId> cached =
                     ServerNameCache.known(server).stream()
                             .filter(candidate -> candidate.id().equals(typedId))
@@ -124,7 +124,7 @@ public final class SpawnCommandRegistration {
                 return SpawnCommands.FEEDBACK.failure(
                         source, "No player named '%s' has joined this server.", typed);
             }
-            return arrive(guest, cached.get());
+            return arrive(guest, List.of(cached.get()));
         }
         SpawnCommands.FEEDBACK.neutral(source, "Looking up %s...", typed);
         UUID guestId = guest.getUUID();
@@ -137,7 +137,7 @@ public final class SpawnCommandRegistration {
                             if (current == null) return;
                             outcome[0] =
                                     answer.status() == NameLookup.Status.FOUND
-                                            ? arrive(current, answer.profile())
+                                            ? arrive(current, List.of(answer.profile()))
                                             : reportLookupFailure(
                                                     current.createCommandSourceStack(),
                                                     typed,
@@ -146,14 +146,26 @@ public final class SpawnCommandRegistration {
         return outcome[0];
     }
 
-    /** Teleports {@code guest} to the spawn {@code owner} shared, online or not. */
-    private static int arrive(ServerPlayer guest, NameAndId owner) {
+    /**
+     * Teleports {@code guest} to the spawn the one of {@code candidates} who shared it with them
+     * owns, online or not. A name can belong to several accounts over time, so the candidate that
+     * actually shared is the one meant.
+     */
+    private static int arrive(ServerPlayer guest, List<NameAndId> candidates) {
         CommandSourceStack source = guest.createCommandSourceStack();
         MinecraftServer server = source.getServer();
-        if (!SpawnAccessData.get(server).allows(owner.id(), guest.getUUID())) {
+        SpawnAccessData access = SpawnAccessData.get(server);
+        List<NameAndId> allowing =
+                candidates.stream()
+                        .filter(candidate -> access.allows(candidate.id(), guest.getUUID()))
+                        .toList();
+        if (allowing.isEmpty()) {
             return SpawnCommands.FEEDBACK.failure(
-                    source, "%s has not shared their spawn with you.", owner.name());
+                    source,
+                    "%s has not shared their spawn with you.",
+                    candidates.getFirst().name());
         }
+        NameAndId owner = allowing.getFirst();
         ServerPlayer onlineOwner = server.getPlayerList().getPlayer(owner.id());
         if (onlineOwner != null) {
             return SpawnTeleportService.teleportToPersonalSpawn(guest, onlineOwner);
