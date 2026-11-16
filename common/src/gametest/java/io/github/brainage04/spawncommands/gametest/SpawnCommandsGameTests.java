@@ -10,6 +10,9 @@ import io.github.brainage04.spawncommands.SpawnAccessData;
 import io.github.brainage04.spawncommands.SpawnCommands;
 import io.github.brainage04.spawncommands.SpawnTeleportService;
 import io.netty.util.ReferenceCountUtil;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -21,6 +24,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
@@ -636,6 +640,75 @@ public final class SpawnCommandsGameTests {
             }
         }
         helper.succeed();
+    }
+
+    public static void ownersGrantAccessToGuestsWhoAreOffline(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        UUID away = UUIDUtil.createOfflinePlayerUUID("SpawnAway");
+        try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
+            owner.player()
+                    .setRespawnPosition(
+                            new ServerPlayer.RespawnConfig(
+                                    LevelData.RespawnData.of(
+                                            helper.getLevel().dimension(),
+                                            helper.absolutePos(new BlockPos(3, 2, 3)),
+                                            0.0F,
+                                            0.0F),
+                                    true),
+                            false);
+            // Written after the join: a join saves the cache from memory and would drop the entry.
+            writeCache(server, away, "SpawnAway");
+            helper.assertTrue(
+                    execute(owner.player(), "spawnshare SpawnAway") == 1,
+                    "An owner must be able to share with a player who is offline");
+            owner.clearMessages();
+            helper.assertTrue(
+                    execute(owner.player(), "spawnshare SpawnNeverSeen") == 0,
+                    "A name the server has not cached must be refused");
+            assertMessage(
+                    helper,
+                    owner,
+                    "[SpawnCommands] No player named 'SpawnNeverSeen' has joined this server.",
+                    0xFF5555);
+            try (GameTestPlayer online = GameTestPlayer.join(helper, "SpawnOnline")) {
+                helper.assertTrue(
+                        execute(
+                                        withServerPermissions(owner.player()),
+                                        "spawnshare @a[name=SpawnOnline]")
+                                == 1,
+                        "A selector must still grant to the online players");
+                List<UUID> guests = SpawnAccessData.get(server).guests(owner.player().getUUID());
+                helper.assertTrue(
+                        guests.contains(online.player().getUUID()),
+                        "The selector must grant to the online player, got " + guests);
+                helper.assertTrue(
+                        guests.contains(away),
+                        "The selector must keep the offline guest, got " + guests);
+                helper.assertTrue(
+                        guests.size() == 2, "The selector must not add anyone else, got " + guests);
+            }
+            // /spawnof names its owner with EntityArgument.player(), so the owner stays online.
+            try (GameTestPlayer joined =
+                    GameTestPlayer.join(helper, new GameProfile(away, "SpawnAway"))) {
+                helper.assertTrue(
+                        execute(joined.player(), "spawnof SpawnKeeper") == 1,
+                        "A guest granted while offline must reach the spawn after joining");
+            }
+        }
+        helper.succeed();
+    }
+
+    private static void writeCache(MinecraftServer server, UUID id, String name) {
+        Path file = server.getServerDirectory().resolve("usercache.json");
+        try {
+            Files.writeString(
+                    file,
+                    ("[{\"name\":\"%s\",\"uuid\":\"%s\","
+                                    + "\"expiresOn\":\"2099-01-01 00:00:00 +0000\"}]")
+                            .formatted(name, id));
+        } catch (IOException exception) {
+            throw new AssertionError("Cannot write " + file, exception);
+        }
     }
 
     public static void playerOnlyCommandsAnswerNonPlayersThroughModFeedback(GameTestHelper helper) {
