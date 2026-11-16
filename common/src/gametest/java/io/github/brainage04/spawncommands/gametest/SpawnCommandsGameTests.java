@@ -2103,7 +2103,7 @@ public final class SpawnCommandsGameTests {
                 new NameLookup(
                         name -> {
                             lookups[0]++;
-                            if (guest.getName().equalsIgnoreCase(name)) {
+                            if (guest.name().equalsIgnoreCase(name)) {
                                 return new NameLookup.Answer(
                                         NameLookup.Status.FOUND, new NameAndId(guest));
                             }
