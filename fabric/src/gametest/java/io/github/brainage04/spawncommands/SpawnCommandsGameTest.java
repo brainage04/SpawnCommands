@@ -232,4 +232,9 @@ public final class SpawnCommandsGameTest {
     public void aRevokeLooksUpANameNoHistoryHolds(GameTestHelper helper) {
         SpawnCommandsGameTests.aRevokeLooksUpANameNoHistoryHolds(helper);
     }
+
+    @GameTest
+    public void aRevokeOfAReusedNameRevokesNothing(GameTestHelper helper) {
+        SpawnCommandsGameTests.aRevokeOfAReusedNameRevokesNothing(helper);
+    }
 }

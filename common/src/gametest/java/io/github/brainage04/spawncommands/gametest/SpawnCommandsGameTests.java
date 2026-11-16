@@ -2186,6 +2186,43 @@ public final class SpawnCommandsGameTests {
         helper.succeed();
     }
 
+    /**
+     * A name one guest's history holds, and that a player with no access holds now, revokes
+     * nothing: the owner could mean the player who never had access.
+     */
+    public static void aRevokeOfAReusedNameRevokesNothing(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        SpawnAccessData access = SpawnAccessData.get(server);
+        UUID renamed = UUID.randomUUID();
+        UUID holder = UUID.randomUUID();
+        try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
+            ServerPlayer player = owner.player();
+            access.grant(player.getUUID(), List.of(renamed));
+            access.sawName(renamed, "SpawnReused", System.currentTimeMillis() - 86_400_000L);
+            // Written after the join, which would drop these entries: the renamed guest is still a
+            // guest, and another account holds the name now and never had access.
+            writeCache(server, Map.of(renamed, "SpawnReused", holder, "SpawnReused"));
+            owner.clearMessages();
+            helper.assertTrue(
+                    share(player, "spawnshare revoke SpawnReused") == 0,
+                    "A name a player without access also holds must revoke nothing");
+            String message = owner.messageTexts().getFirst();
+            helper.assertTrue(
+                    message.startsWith(
+                                    "[SpawnCommands] 'SpawnReused' is also the name of a player who"
+                                            + " does not have access")
+                            && message.endsWith(
+                                    "Run '/spawnshare revoke "
+                                            + renamed
+                                            + "' to revoke the guest."),
+                    "The refusal must say how to name the guest, got " + message);
+            helper.assertTrue(
+                    access.guests(player.getUUID()).equals(List.of(renamed)),
+                    "The guest must keep access, got " + access.guests(player.getUUID()));
+        }
+        helper.succeed();
+    }
+
     /** Runs {@code command} and asserts the dispatcher refuses it, leaving the player in place. */
     private static void assertRefused(
             GameTestHelper helper, ServerPlayer player, String command, Vec3 before) {

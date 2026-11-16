@@ -193,6 +193,10 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 event,
                 "a_revoke_looks_up_a_name_no_history_holds",
                 SpawnCommandsGameTests::aRevokeLooksUpANameNoHistoryHolds);
+        register(
+                event,
+                "a_revoke_of_a_reused_name_revokes_nothing",
+                SpawnCommandsGameTests::aRevokeOfAReusedNameRevokesNothing);
     }
 
     private static void register(
