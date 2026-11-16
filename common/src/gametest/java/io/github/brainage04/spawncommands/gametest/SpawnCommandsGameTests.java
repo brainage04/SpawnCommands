@@ -1741,8 +1741,9 @@ public final class SpawnCommandsGameTests {
                 helper.assertTrue(
                         guestPlayer.position().equals(expected),
                         "A selector naming one player must reach the owner's spawn");
-                assertRefused(helper, guestPlayer, "spawnof @e[type=player,limit=1]", before);
+                assertRefused(helper, guestPlayer, "spawnof @e[type=zombie,limit=1]", before);
                 assertRefused(helper, guestPlayer, "spawnof @a[tag=" + sharedTag + "]", before);
+                assertRefused(helper, guestPlayer, "spawnof @e[limit=1]", before);
                 assertRefused(helper, guestPlayer, "spawnof @a[tag=spawncommands-nobody]", before);
             } finally {
                 ownerPlayer.removeTag(ownerTag);
