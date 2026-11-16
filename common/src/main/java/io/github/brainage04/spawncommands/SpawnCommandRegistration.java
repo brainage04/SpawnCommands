@@ -467,7 +467,8 @@ public final class SpawnCommandRegistration {
     private static MutableComponent accountLine(
             SpawnAccessData access, UUID id, String currentName) {
         List<SpawnAccessData.SeenName> seen = access.names(id);
-        MutableComponent line = Component.literal(" " + currentName).withStyle(ChatFormatting.WHITE);
+        MutableComponent line =
+                Component.literal(" " + currentName).withStyle(ChatFormatting.WHITE);
         List<String> previous =
                 seen.stream()
                         .map(SpawnAccessData.SeenName::name)
@@ -544,15 +545,23 @@ public final class SpawnCommandRegistration {
         return outcome;
     }
 
-    /** The name to show for an account: its newest history entry, else its cached name. */
-    private static String displayName(
-            MinecraftServer server, SpawnAccessData access, UUID id) {
+    /**
+     * The name to show for an account: the newest one the server saw it under, else the newest one
+     * recorded, else its cached name.
+     */
+    private static String displayName(MinecraftServer server, SpawnAccessData access, UUID id) {
         List<SpawnAccessData.SeenName> seen = access.names(id);
-        if (!seen.isEmpty()) return seen.getFirst().name();
-        return cachedNames(server, List.of(id)).stream()
-                .map(NameAndId::name)
+        return seen.stream()
+                .filter(entry -> entry.lastSeen() > 0)
                 .findFirst()
-                .orElse(id.toString());
+                .or(() -> seen.stream().findFirst())
+                .map(SpawnAccessData.SeenName::name)
+                .orElseGet(
+                        () ->
+                                cachedNames(server, List.of(id)).stream()
+                                        .map(NameAndId::name)
+                                        .findFirst()
+                                        .orElse(id.toString()));
     }
 
     private static int apply(

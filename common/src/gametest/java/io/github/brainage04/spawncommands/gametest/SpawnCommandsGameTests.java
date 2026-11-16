@@ -2278,14 +2278,13 @@ public final class SpawnCommandsGameTests {
                                     .anyMatch(
                                             line ->
                                                     line.contains("SpawnBoth")
-                                                            && line.contains("previous name SpawnFirst")),
+                                                            && line.contains(
+                                                                    "previous name SpawnFirst")),
                     "Each match must list its other names, got " + lines);
             helper.assertTrue(
                     clicks.size() == 2
                             && clicks.containsAll(
-                                    List.of(
-                                            "/spawnshare " + renamed,
-                                            "/spawnshare " + holder)),
+                                    List.of("/spawnshare " + renamed, "/spawnshare " + holder)),
                     "Each match must carry a share button for its own id, got " + clicks);
             // The click runs in the same second as the list, through execute() rather than share(),
             // so the allowance the list would have spent is the point of the step.
