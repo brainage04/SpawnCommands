@@ -165,6 +165,26 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 event,
                 "owners_grant_access_to_guests_who_are_offline",
                 SpawnCommandsGameTests::ownersGrantAccessToGuestsWhoAreOffline);
+        register(
+                event,
+                "an_uncached_name_is_shared_once_the_lookup_answers",
+                SpawnCommandsGameTests::anUncachedNameIsSharedOnceTheLookupAnswers);
+        register(
+                event,
+                "a_name_mojang_does_not_know_is_refused",
+                SpawnCommandsGameTests::aNameMojangDoesNotKnowIsRefused);
+        register(
+                event,
+                "a_failed_lookup_changes_nothing",
+                SpawnCommandsGameTests::aFailedLookupChangesNothing);
+        register(
+                event,
+                "spawnshare_is_rate_limited_per_player",
+                SpawnCommandsGameTests::spawnshareIsRateLimitedPerPlayer);
+        register(
+                event,
+                "an_ambiguous_revoke_lists_each_guest_and_revokes_by_id",
+                SpawnCommandsGameTests::anAmbiguousRevokeListsEachGuestAndRevokesById);
     }
 
     private static void register(

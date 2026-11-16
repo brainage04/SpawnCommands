@@ -6,6 +6,8 @@ import com.mojang.brigadier.suggestion.Suggestion;
 import io.github.brainage04.brainagelib.gametest.CapturedCommandOutput;
 import io.github.brainage04.brainagelib.gametest.GameTestPlayer;
 import io.github.brainage04.brainagelib.help.ServerModHelpRegistry;
+import io.github.brainage04.spawncommands.NameLookup;
+import io.github.brainage04.spawncommands.ShareRateLimit;
 import io.github.brainage04.spawncommands.SpawnAccessData;
 import io.github.brainage04.spawncommands.SpawnCommands;
 import io.github.brainage04.spawncommands.SpawnTeleportService;
@@ -20,6 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
@@ -27,6 +30,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
@@ -34,6 +38,7 @@ import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.players.NameAndId;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -286,10 +291,10 @@ public final class SpawnCommandsGameTests {
                 helper.assertTrue(
                         guest.position().equals(initial), "Denied access must not move the guest");
                 helper.assertTrue(
-                        execute(ownerSource, "spawnshare " + guests) == 1,
+                        share(ownerSource, "spawnshare " + guests) == 1,
                         "/spawnshare must grant access");
                 helper.assertTrue(
-                        execute(ownerSource, "spawnshare " + guests) == 0,
+                        share(ownerSource, "spawnshare " + guests) == 0,
                         "Repeated grants must not add access twice");
                 helper.assertTrue(
                         execute(guestSource, "spawnof " + target) == 1,
@@ -301,7 +306,7 @@ public final class SpawnCommandsGameTests {
                         guest.getYRot() == 75.0F && guest.getXRot() == 12.0F,
                         "Spawn rotation must be preserved");
                 helper.assertTrue(
-                        execute(ownerSource, "spawnshare revoke " + guests) == 1,
+                        share(ownerSource, "spawnshare revoke " + guests) == 1,
                         "Revocation must remove access");
                 Vec3 afterTeleport = guest.position();
                 helper.assertTrue(
@@ -410,19 +415,19 @@ public final class SpawnCommandsGameTests {
             String guestSelector = "@a[name=" + guest.player().getScoreboardName() + "]";
             owner.clearMessages();
             helper.assertTrue(
-                    execute(ownerSource, "spawnshare " + guestSelector) == 1,
+                    share(ownerSource, "spawnshare " + guestSelector) == 1,
                     "Sharing must return the number of players granted");
             assertMessage(
                     helper, owner, "[SpawnCommands] Shared your spawn with 1 player(s).", 0x55FF55);
             owner.clearMessages();
             helper.assertTrue(
-                    execute(ownerSource, "spawnshare " + guestSelector) == 0,
+                    share(ownerSource, "spawnshare " + guestSelector) == 0,
                     "Repeated sharing must return 0");
             assertMessage(
                     helper, owner, "[SpawnCommands] Shared your spawn with 0 player(s).", 0xFFFF55);
             owner.clearMessages();
             helper.assertTrue(
-                    execute(ownerSource, "spawnshare revoke " + guestSelector) == 1,
+                    share(ownerSource, "spawnshare revoke " + guestSelector) == 1,
                     "Revoking must return the number of players revoked");
             assertMessage(
                     helper,
@@ -632,7 +637,7 @@ public final class SpawnCommandsGameTests {
                     suggested.contains("SpawnLeaver"),
                     "Revoke must suggest the offline guest, got " + suggested);
             helper.assertTrue(
-                    execute(owner.player(), "spawnshare revoke SpawnLeaver") == 1,
+                    share(owner.player(), "spawnshare revoke SpawnLeaver") == 1,
                     "An owner must be able to revoke a guest who is offline");
             try (GameTestPlayer rejoined = GameTestPlayer.join(helper, leaver)) {
                 helper.assertTrue(
@@ -660,20 +665,29 @@ public final class SpawnCommandsGameTests {
             // Written after the join: a join saves the cache from memory and would drop the entry.
             writeCache(server, away, "SpawnAway");
             helper.assertTrue(
-                    execute(owner.player(), "spawnshare SpawnAway") == 1,
+                    share(owner.player(), "spawnshare SpawnAway") == 1,
                     "An owner must be able to share with a player who is offline");
             owner.clearMessages();
+            // A name the server has not cached goes to Mojang; the stub answers that it is unknown.
+            NameLookup.install(
+                    server,
+                    new NameLookup(
+                            name -> new NameLookup.Answer(NameLookup.Status.NOT_FOUND, null),
+                            Runnable::run,
+                            server::execute,
+                            server::isSameThread));
             helper.assertTrue(
-                    execute(owner.player(), "spawnshare SpawnNeverSeen") == 0,
-                    "A name the server has not cached must be refused");
-            assertMessage(
+                    share(owner.player(), "spawnshare SpawnNeverSeen") == 0,
+                    "A name Mojang does not know must be refused");
+            assertLastMessage(
                     helper,
                     owner,
-                    "[SpawnCommands] No player named 'SpawnNeverSeen' has joined this server.",
+                    "[SpawnCommands] Mojang has no player named 'SpawnNeverSeen'.",
                     0xFF5555);
+            NameLookup.reset(server);
             try (GameTestPlayer online = GameTestPlayer.join(helper, "SpawnOnline")) {
                 helper.assertTrue(
-                        execute(
+                        share(
                                         withServerPermissions(owner.player()),
                                         "spawnshare @a[name=SpawnOnline]")
                                 == 1,
@@ -691,9 +705,13 @@ public final class SpawnCommandsGameTests {
             // /spawnof names its owner with EntityArgument.player(), so the owner stays online.
             try (GameTestPlayer joined =
                     GameTestPlayer.join(helper, new GameProfile(away, "SpawnAway"))) {
+                int result = execute(joined.player(), "spawnof SpawnKeeper");
                 helper.assertTrue(
-                        execute(joined.player(), "spawnof SpawnKeeper") == 1,
-                        "A guest granted while offline must reach the spawn after joining");
+                        result == 1,
+                        "A guest granted while offline must reach the spawn after joining, got "
+                                + result
+                                + " with "
+                                + joined.messageTexts());
             }
         }
         helper.succeed();
@@ -1566,7 +1584,7 @@ public final class SpawnCommandsGameTests {
                                 LevelData.RespawnData.of(level.dimension(), bed, yaw, 0.0F), false),
                         false);
                 helper.assertTrue(
-                        execute(ownerPlayer, "spawnshare SpawnOffGuest") == 1,
+                        share(ownerPlayer, "spawnshare SpawnOffGuest") == 1,
                         "Sharing with the guest must work");
             }
             helper.assertTrue(
@@ -1619,14 +1637,14 @@ public final class SpawnCommandsGameTests {
                                         false),
                                 false);
                 helper.assertTrue(
-                        execute(owner.player(), "spawnshare SpawnOffDenied") == 1,
+                        share(owner.player(), "spawnshare SpawnOffDenied") == 1,
                         "Sharing with the guest must work");
             }
             // An owner who never set a spawn.
             try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnOffNoSpawn")) {
                 noSpawn = owner.player().getUUID();
                 helper.assertTrue(
-                        execute(owner.player(), "spawnshare SpawnOffDenied") == 1,
+                        share(owner.player(), "spawnshare SpawnOffDenied") == 1,
                         "Sharing with the guest must work");
             }
             // An offline owner who never shared with this guest.
@@ -1677,16 +1695,24 @@ public final class SpawnCommandsGameTests {
                     guest,
                     "[SpawnCommands] SpawnOffUnshared has not shared their spawn with you.",
                     0xFF5555);
-            // A name no player has used on this server.
+            // A name no player has used on this server goes to Mojang; the stub knows no such name.
+            NameLookup.install(
+                    server,
+                    new NameLookup(
+                            name -> new NameLookup.Answer(NameLookup.Status.NOT_FOUND, null),
+                            Runnable::run,
+                            server::execute,
+                            server::isSameThread));
             guest.clearMessages();
             helper.assertTrue(
                     execute(guestPlayer, "spawnof SpawnOffUnknown") == 0,
-                    "A name the server has never seen must be refused");
-            assertMessage(
+                    "A name Mojang does not know must be refused");
+            assertLastMessage(
                     helper,
                     guest,
-                    "[SpawnCommands] No player named 'SpawnOffUnknown' has joined this server.",
+                    "[SpawnCommands] Mojang has no player named 'SpawnOffUnknown'.",
                     0xFF5555);
+            NameLookup.reset(server);
             helper.assertTrue(
                     guestPlayer.position().equals(before), "Refusals must not move the guest");
         }
@@ -1731,7 +1757,7 @@ public final class SpawnCommandsGameTests {
                             LevelData.RespawnData.of(level.dimension(), spawn, 0.0F, 0.0F), true),
                     false);
             helper.assertTrue(
-                    execute(ownerPlayer, "spawnshare " + guest.player().getScoreboardName()) == 1,
+                    share(ownerPlayer, "spawnshare " + guest.player().getScoreboardName()) == 1,
                     "Sharing with the guest must work");
             ServerPlayer guestPlayer = guest.player();
             Vec3 expected = new Vec3(spawn.getX() + 0.5D, spawn.getY() + 0.1D, spawn.getZ() + 0.5D);
@@ -1776,6 +1802,242 @@ public final class SpawnCommandsGameTests {
                 ownerPlayer.removeTag(sharedTag);
                 guestPlayer.removeTag(sharedTag);
             }
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The lookup answers on a background thread, and the command finishes on the server thread once
+     * it has. Nothing may wait for the answer on the server thread: the tick counter has to keep
+     * moving while it is pending.
+     */
+    public static void anUncachedNameIsSharedOnceTheLookupAnswers(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        GameProfile profile = new GameProfile(UUID.randomUUID(), "SpawnGhost");
+        AtomicReference<Runnable> pending = new AtomicReference<>();
+        NameLookup.install(
+                server,
+                new NameLookup(
+                        name ->
+                                new NameLookup.Answer(
+                                        NameLookup.Status.FOUND, new NameAndId(profile)),
+                        pending::set,
+                        server::execute,
+                        server::isSameThread));
+        SpawnAccessData access = SpawnAccessData.get(server);
+        // Closed inside the final step, which runs after this method has returned.
+        GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper");
+        ServerPlayer player = owner.player();
+        owner.clearMessages();
+        helper.assertTrue(
+                execute(player, "spawnshare SpawnGhost") == 1,
+                "The command must answer at once, before the lookup has an answer");
+        assertMessage(helper, owner, "[SpawnCommands] Looking up SpawnGhost...", 0xFFFF55);
+        helper.assertTrue(
+                access.guests(player.getUUID()).isEmpty(),
+                "Nothing may be shared before the answer arrives");
+        long before = helper.getTick();
+        helper.runAfterDelay(
+                5,
+                () -> {
+                    helper.assertTrue(
+                            helper.getTick() - before >= 5,
+                            "The server must keep ticking while the lookup is pending");
+                    helper.assertTrue(
+                            access.guests(player.getUUID()).isEmpty(),
+                            "Nothing may be shared before the answer arrives");
+                    pending.get().run();
+                    helper.runAfterDelay(
+                            2,
+                            () -> {
+                                helper.assertTrue(
+                                        access.guests(player.getUUID())
+                                                .equals(List.of(profile.id())),
+                                        "The share must apply once the answer arrives, got "
+                                                + access.guests(player.getUUID()));
+                                helper.assertTrue(
+                                        access.names(profile.id()).stream()
+                                                .anyMatch(seen -> seen.name().equals("SpawnGhost")),
+                                        "The answer must be recorded in the name history");
+                                helper.assertTrue(
+                                        owner.messageTexts()
+                                                .contains(
+                                                        "[SpawnCommands] Shared your spawn with 1"
+                                                                + " player(s)."),
+                                        "The player must be told the share applied, got "
+                                                + owner.messageTexts());
+                                NameLookup.reset(server);
+                                owner.close();
+                                helper.succeed();
+                            });
+                });
+    }
+
+    /** A name Mojang does not know is refused; no offline id may be invented for it. */
+    public static void aNameMojangDoesNotKnowIsRefused(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        NameLookup.install(
+                server,
+                new NameLookup(
+                        name -> new NameLookup.Answer(NameLookup.Status.NOT_FOUND, null),
+                        Runnable::run,
+                        server::execute,
+                        server::isSameThread));
+        SpawnAccessData access = SpawnAccessData.get(server);
+        try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
+            ServerPlayer player = owner.player();
+            owner.clearMessages();
+            helper.assertTrue(
+                    execute(player, "spawnshare SpawnNeverSeen") == 0,
+                    "A name Mojang does not know must be refused");
+            assertLastMessage(
+                    helper,
+                    owner,
+                    "[SpawnCommands] Mojang has no player named 'SpawnNeverSeen'.",
+                    0xFF5555);
+            helper.assertTrue(
+                    access.guests(player.getUUID()).isEmpty(), "A refused name must share nothing");
+            helper.assertTrue(
+                    !access.guests(player.getUUID())
+                            .contains(UUIDUtil.createOfflinePlayerUUID("SpawnNeverSeen")),
+                    "An offline id must never stand in for a name Mojang does not know");
+            NameLookup.reset(server);
+        }
+        helper.succeed();
+    }
+
+    /** A lookup that fails (a timeout or a service error) changes nothing and says so. */
+    public static void aFailedLookupChangesNothing(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        NameLookup.install(
+                server,
+                new NameLookup(
+                        name -> new NameLookup.Answer(NameLookup.Status.FAILED, null),
+                        Runnable::run,
+                        server::execute,
+                        server::isSameThread));
+        SpawnAccessData access = SpawnAccessData.get(server);
+        try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
+            ServerPlayer player = owner.player();
+            owner.clearMessages();
+            helper.assertTrue(
+                    execute(player, "spawnshare SpawnGhost") == 0,
+                    "A failed lookup must not share");
+            assertLastMessage(
+                    helper,
+                    owner,
+                    "[SpawnCommands] Could not look up 'SpawnGhost' right now. Try again later.",
+                    0xFF5555);
+            helper.assertTrue(
+                    access.guests(player.getUUID()).isEmpty(),
+                    "A failed lookup must change nothing");
+            NameLookup.reset(server);
+        }
+        helper.succeed();
+    }
+
+    /** Every use counts against the player's allowance, cached name or not. */
+    public static void spawnshareIsRateLimitedPerPlayer(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ShareRateLimit limit = ShareRateLimit.of(server);
+        limit.clear();
+        try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper");
+                GameTestPlayer guest = GameTestPlayer.join(helper, "SpawnGuest")) {
+            ServerPlayer player = owner.player();
+            helper.assertTrue(
+                    execute(player, "spawnshare " + guest.player().getScoreboardName()) == 1,
+                    "The first use must be allowed");
+            owner.clearMessages();
+            helper.assertTrue(
+                    execute(player, "spawnshare " + guest.player().getScoreboardName()) == 0,
+                    "A second use in the same second must be refused");
+            String message = owner.messageTexts().getFirst();
+            helper.assertTrue(
+                    message.startsWith("[SpawnCommands] You can use /spawnshare again in ")
+                            && (message.endsWith(" second.") || message.endsWith(" seconds.")),
+                    "The refusal must say how long to wait, got " + message);
+        } finally {
+            limit.clear();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A name two guests have held revokes nothing: a renamed player and a new holder of the name
+     * are different accounts, so the owner picks one from the list, which revokes by id.
+     */
+    public static void anAmbiguousRevokeListsEachGuestAndRevokesById(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        NameLookup.install(
+                server,
+                new NameLookup(
+                        name -> new NameLookup.Answer(NameLookup.Status.NOT_FOUND, null),
+                        Runnable::run,
+                        server::execute,
+                        server::isSameThread));
+        SpawnAccessData access = SpawnAccessData.get(server);
+        UUID renamed = UUID.randomUUID();
+        UUID holder = UUID.randomUUID();
+        try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
+            ServerPlayer player = owner.player();
+            access.grant(player.getUUID(), List.of(renamed, holder));
+            long now = System.currentTimeMillis();
+            access.sawName(renamed, "Alex", now - 86_400_000L);
+            access.sawName(renamed, "Steve", now);
+            access.sawName(holder, "Steve", now);
+            owner.clearMessages();
+            helper.assertTrue(
+                    share(player, "spawnshare revoke Steve") == 0,
+                    "An ambiguous revoke must revoke nothing");
+            helper.assertTrue(
+                    access.guests(player.getUUID()).containsAll(List.of(renamed, holder)),
+                    "Neither guest may be revoked by an ambiguous name");
+            List<Component> messages = owner.messages();
+            helper.assertTrue(
+                    messages.getFirst()
+                            .getString()
+                            .equals(
+                                    "[SpawnCommands] 2 guests of your spawn have been called"
+                                            + " 'Steve'. Choose the one to revoke:"),
+                    "The list must say why nothing was revoked, got " + owner.messageTexts());
+            List<String> lines = new ArrayList<>();
+            List<String> clicks = new ArrayList<>();
+            for (Component line : messages.subList(1, messages.size())) {
+                lines.add(line.getString());
+                line.visit(
+                        (style, segment) -> {
+                            if (segment.trim().equals("[Revoke]")
+                                    && style.getClickEvent()
+                                            instanceof ClickEvent.RunCommand(String command)) {
+                                clicks.add(command);
+                            }
+                            return Optional.empty();
+                        },
+                        Style.EMPTY);
+            }
+            helper.assertTrue(
+                    lines.size() == 2
+                            && lines.stream()
+                                    .anyMatch(
+                                            line ->
+                                                    line.contains("Steve")
+                                                            && line.contains("previous name Alex")),
+                    "Each match must list its other names, got " + lines);
+            helper.assertTrue(
+                    clicks.size() == 2
+                            && clicks.containsAll(
+                                    List.of(
+                                            "/spawnshare revoke " + renamed,
+                                            "/spawnshare revoke " + holder)),
+                    "Each match must carry a revoke button for its own id, got " + clicks);
+            helper.assertTrue(
+                    share(player, "spawnshare revoke " + renamed) == 1,
+                    "A clicked revoke must revoke the guest whose id it names");
+            helper.assertTrue(
+                    access.guests(player.getUUID()).equals(List.of(holder)),
+                    "Only the clicked guest may be revoked, got "
+                            + access.guests(player.getUUID()));
+            NameLookup.reset(server);
         }
         helper.succeed();
     }
@@ -1826,7 +2088,7 @@ public final class SpawnCommandsGameTests {
                                 true),
                         false);
                 helper.assertTrue(
-                        execute(ownerPlayer, "spawnshare SpawnOffNGuest") == 1,
+                        share(ownerPlayer, "spawnshare SpawnOffNGuest") == 1,
                         "Sharing with the guest must work");
             }
             helper.assertTrue(
@@ -1883,6 +2145,43 @@ public final class SpawnCommandsGameTests {
         return player.createCommandSourceStack()
                 .withPermission(
                         player.level().getServer().createCommandSourceStack().permissions());
+    }
+
+    /**
+     * Runs a /spawnshare command with the player's allowance cleared first: these tests check what
+     * sharing does, and several uses in one second would otherwise hit the rate limit.
+     */
+    private static int share(ServerPlayer player, String command) {
+        ShareRateLimit.of(player.level().getServer()).clear();
+        return execute(player, command);
+    }
+
+    private static int share(CommandSourceStack source, String command) {
+        ShareRateLimit.of(source.getServer()).clear();
+        return execute(source, command);
+    }
+
+    /**
+     * The last message the player was sent. A lookup answers "Looking up ..." first, so a test
+     * whose stub answers at once sees both messages.
+     */
+    private static void assertLastMessage(
+            GameTestHelper helper, GameTestPlayer player, String text, int bodyColor) {
+        List<Component> messages = player.messages();
+        helper.assertTrue(
+                !messages.isEmpty() && messages.getLast().getString().equals(text),
+                "Expected the last message to be \"" + text + "\", got " + player.messageTexts());
+        List<Integer> colors = new ArrayList<>();
+        messages.getLast()
+                .visit(
+                        (style, segment) -> {
+                            if (!segment.isEmpty()) colors.add(style.getColor().getValue());
+                            return Optional.empty();
+                        },
+                        Style.EMPTY);
+        helper.assertTrue(
+                colors.equals(List.of(0xAAAAAA, bodyColor)),
+                "Expected a grey prefix and a coloured body for \"" + text + "\", got " + colors);
     }
 
     private static int execute(ServerPlayer player, String command) {
