@@ -4,6 +4,8 @@ import static net.minecraft.commands.Commands.argument;
 import static net.minecraft.commands.Commands.literal;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.StringReader;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.context.ParsedCommandNode;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -19,6 +21,8 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.commands.arguments.GameProfileArgument;
+import net.minecraft.commands.arguments.selector.EntitySelector;
+import net.minecraft.commands.arguments.selector.EntitySelectorParser;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.players.NameAndId;
@@ -35,7 +39,8 @@ public final class SpawnCommandRegistration {
         dispatcher.register(
                 literal("spawnof")
                         .then(
-                                argument("player", GameProfileArgument.gameProfile())
+                                argument("player", StringArgumentType.greedyString())
+                                        .suggests(SpawnCommandRegistration::suggestOwners)
                                         .executes(
                                                 SpawnCommandRegistration::teleportToSharedSpawn)));
         dispatcher.register(
@@ -106,22 +111,21 @@ public final class SpawnCommandRegistration {
     private static NameAndId sharedSpawnOwner(CommandContext<CommandSourceStack> context)
             throws CommandSyntaxException {
         CommandSourceStack source = context.getSource();
-        if (context.getArgument("player", GameProfileArgument.Result.class)
-                instanceof GameProfileArgument.SelectorResult selector) {
-            // EntityArgument.player() refused a selector matching several players while it parsed
-            // (EntityArgument.java:115-120); GameProfileArgument accepts any selector, so the same
-            // refusal is made here. No match already throws NO_PLAYERS_FOUND
-            // (GameProfileArgument.java:100-103), as EntityArgument.player() answered.
-            Collection<NameAndId> named = selector.getNames(source);
-            if (named.size() > 1) throw EntityArgument.ERROR_NOT_SINGLE_PLAYER.create();
-            return named.iterator().next();
+        String typed = context.getArgument("player", String.class);
+        if (typed.startsWith("@")) {
+            StringReader reader = new StringReader(typed);
+            // Selectors stay online-players-only, as EntityArgument.player() made them: findPlayers
+            // checks the selector permission (EntitySelector.java:119-124), and a selector that
+            // will not parse is refused with the parser's own message.
+            EntitySelector selector = new EntitySelectorParser(reader, true).parse();
+            if (selector.includesEntities() && !selector.isSelfSelector()) {
+                throw EntityArgument.ERROR_ONLY_PLAYERS_ALLOWED.createWithContext(reader);
+            }
+            List<ServerPlayer> players = selector.findPlayers(source);
+            if (players.isEmpty()) throw EntityArgument.NO_PLAYERS_FOUND.create();
+            if (players.size() > 1) throw EntityArgument.ERROR_NOT_SINGLE_PLAYER.create();
+            return players.getFirst().nameAndId();
         }
-        // A typed name or UUID parses to a lookup through the name cache, and for a name it has not
-        // cached that asks Mojang's profile service on the server thread and writes the answer to
-        // usercache.json (GameProfileArgument.java:63-66, CachedUserNameToIdResolver.java:63-69,
-        // 118-120). A name this server has never seen must be refused instead, as /spawnshare does,
-        // so the argument is matched against the cached names as the text typed.
-        String typed = typedArgument(context, "player");
         List<NameAndId> known =
                 ServerNameCache.known(source.getServer()).stream()
                         .filter(candidate -> candidate.name().equalsIgnoreCase(typed))
@@ -148,6 +152,17 @@ public final class SpawnCommandRegistration {
                     source, "No player named '%s' has joined this server.", typed);
         }
         return cached.orElse(null);
+    }
+
+    // The names the cache knows, plus the players online now, as GameProfileArgument suggested.
+    private static CompletableFuture<Suggestions> suggestOwners(
+            CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        return SharedSuggestionProvider.suggest(
+                ServerNameCache.known(context.getSource().getServer()).stream()
+                        .map(NameAndId::name)
+                        .distinct()
+                        .toList(),
+                builder);
     }
 
     private static int changeAccess(CommandContext<CommandSourceStack> context, boolean grant)

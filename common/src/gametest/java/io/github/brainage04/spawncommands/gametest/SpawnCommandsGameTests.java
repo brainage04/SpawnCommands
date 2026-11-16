@@ -1700,8 +1700,7 @@ public final class SpawnCommandsGameTests {
             ServerPlayer self = player.player();
             self.setRespawnPosition(
                     new ServerPlayer.RespawnConfig(
-                            LevelData.RespawnData.of(level.dimension(), spawn, 0.0F, 0.0F),
-                            true),
+                            LevelData.RespawnData.of(level.dimension(), spawn, 0.0F, 0.0F), true),
                     false);
             Vec3 expected = new Vec3(spawn.getX() + 0.5D, spawn.getY() + 0.1D, spawn.getZ() + 0.5D);
             self.teleportTo(expected.x() + 20.0D, expected.y(), expected.z() + 20.0D);
