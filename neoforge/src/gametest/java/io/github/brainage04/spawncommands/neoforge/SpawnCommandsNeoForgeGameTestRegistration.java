@@ -141,6 +141,10 @@ public final class SpawnCommandsNeoForgeGameTestRegistration {
                 event,
                 "owners_revoke_guests_who_are_offline",
                 SpawnCommandsGameTests::ownersRevokeGuestsWhoAreOffline);
+        register(
+                event,
+                "owners_grant_access_to_guests_who_are_offline",
+                SpawnCommandsGameTests::ownersGrantAccessToGuestsWhoAreOffline);
     }
 
     private static void register(

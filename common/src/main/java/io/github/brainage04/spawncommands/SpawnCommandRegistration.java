@@ -17,6 +17,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.commands.arguments.GameProfileArgument;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.players.NameAndId;
 import net.minecraft.server.players.UserNameToIdResolver;
@@ -51,12 +52,14 @@ public final class SpawnCommandRegistration {
                                                                         changeAccess(
                                                                                 context, false))))
                         .then(
-                                argument("players", EntityArgument.players())
+                                argument("players", GameProfileArgument.gameProfile())
                                         .executes(context -> changeAccess(context, true))));
         HelpPage.create(SpawnCommands.FEEDBACK, "spawncommands")
                 .line("/spawn - teleport to the world spawn")
                 .line("/myspawn - teleport to your own respawn point")
-                .line("/spawnshare <players> - let players visit your spawn with /spawnof")
+                .line(
+                        "/spawnshare <players> - let players visit your spawn with /spawnof,"
+                                + " online or offline")
                 .line("/spawnshare revoke <players> - take that access away again")
                 .line("/spawnof <player> - teleport to a spawn someone shared with you")
                 .register(dispatcher);
@@ -93,14 +96,20 @@ public final class SpawnCommandRegistration {
         ServerPlayer owner = SpawnCommands.FEEDBACK.requirePlayer(source);
         if (owner == null) return 0;
         SpawnAccessData access = SpawnAccessData.get(source.getServer());
-        Collection<UUID> playerIds =
-                grant
-                        ? EntityArgument.getPlayers(context, "players").stream()
-                                .map(ServerPlayer::getUUID)
-                                .toList()
-                        : players(context, "players", access.guests(owner.getUUID())).stream()
-                                .map(NameAndId::id)
-                                .toList();
+        Collection<NameAndId> named =
+                players(
+                        context,
+                        "players",
+                        grant
+                                ? ServerNameCache.known(source.getServer())
+                                : cachedNames(source.getServer(), access.guests(owner.getUUID())));
+        if (grant && named.isEmpty()) {
+            return SpawnCommands.FEEDBACK.failure(
+                    source,
+                    "No player named '%s' has joined this server.",
+                    typedArgument(context, "players"));
+        }
+        Collection<UUID> playerIds = named.stream().map(NameAndId::id).toList();
         int changed =
                 grant
                         ? access.grant(owner.getUUID(), playerIds)
@@ -141,7 +150,7 @@ public final class SpawnCommandRegistration {
     private static Collection<NameAndId> players(
             CommandContext<CommandSourceStack> context,
             String argument,
-            Collection<UUID> candidates)
+            Collection<NameAndId> candidates)
             throws CommandSyntaxException {
         GameProfileArgument.Result result =
                 context.getArgument(argument, GameProfileArgument.Result.class);
@@ -154,11 +163,12 @@ public final class SpawnCommandRegistration {
         // 118-120). The lookup by UUID only reads the cache
         // (CachedUserNameToIdResolver.java:135-143).
         String typed = typedArgument(context, argument);
-        UserNameToIdResolver names = context.getSource().getServer().services().nameToIdCache();
-        return candidates.stream()
-                .flatMap(candidate -> names.get(candidate).stream())
-                .filter(player -> player.name().equalsIgnoreCase(typed))
-                .toList();
+        return candidates.stream().filter(player -> player.name().equalsIgnoreCase(typed)).toList();
+    }
+
+    private static Collection<NameAndId> cachedNames(MinecraftServer server, Collection<UUID> ids) {
+        UserNameToIdResolver names = server.services().nameToIdCache();
+        return ids.stream().flatMap(id -> names.get(id).stream()).toList();
     }
 
     private static String typedArgument(

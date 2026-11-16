@@ -66,6 +66,11 @@ public final class SpawnCommandsGameTest {
     }
 
     @GameTest
+    public void ownersGrantAccessToGuestsWhoAreOffline(GameTestHelper helper) {
+        SpawnCommandsGameTests.ownersGrantAccessToGuestsWhoAreOffline(helper);
+    }
+
+    @GameTest
     public void worldSpawnOverAFenceOrWallLandsOnItsTop(GameTestHelper helper) {
         SpawnCommandsGameTests.worldSpawnOverAFenceOrWallLandsOnItsTop(helper);
     }
