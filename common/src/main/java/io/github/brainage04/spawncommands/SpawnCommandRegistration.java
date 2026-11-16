@@ -461,8 +461,8 @@ public final class SpawnCommandRegistration {
     }
 
     /**
-     * The account's current name, its other names and when it was last seen. The name the caller
-     * matched on is the current one; the history supplies the rest.
+     * The account's current name, its other names and when it was last seen. A name an owner typed
+     * is recorded with no time, so "last seen" is the newest join the server recorded.
      */
     private static MutableComponent accountLine(
             SpawnAccessData access, UUID id, String currentName) {
@@ -478,15 +478,18 @@ public final class SpawnCommandRegistration {
                     Component.literal(" (previous name " + String.join(", ", previous) + ")")
                             .withStyle(ChatFormatting.GRAY));
         }
-        if (!seen.isEmpty()) {
-            line.append(
-                    Component.literal(
-                                    " last seen "
-                                            + LAST_SEEN.format(
-                                                    Instant.ofEpochMilli(
-                                                            seen.getFirst().lastSeen())))
-                            .withStyle(ChatFormatting.GRAY));
-        }
+        seen.stream()
+                .filter(entry -> entry.lastSeen() > 0)
+                .findFirst()
+                .ifPresent(
+                        entry ->
+                                line.append(
+                                        Component.literal(
+                                                        " last seen "
+                                                                + LAST_SEEN.format(
+                                                                        Instant.ofEpochMilli(
+                                                                                entry.lastSeen())))
+                                                .withStyle(ChatFormatting.GRAY)));
         return line;
     }
 
@@ -560,9 +563,8 @@ public final class SpawnCommandRegistration {
             Collection<NameAndId> named) {
         // A revoke records no name: the history is what finds the guest again, and a name the
         // owner typed to remove access is not a sighting of the player.
-        long now = System.currentTimeMillis();
         if (grant) {
-            for (NameAndId profile : named) access.sawName(profile.id(), profile.name(), now);
+            for (NameAndId profile : named) access.recordName(profile.id(), profile.name());
         }
         Collection<UUID> playerIds = named.stream().map(NameAndId::id).toList();
         int changed =
