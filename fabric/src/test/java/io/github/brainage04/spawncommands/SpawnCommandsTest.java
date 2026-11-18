@@ -401,5 +401,4 @@ class SpawnCommandsTest {
         assertEquals(List.of(renamed), data.guestsNamed(owner, "Steve"));
         assertTrue(data.guestsNamed(owner, "SpawnNeverSeen").isEmpty());
     }
-
 }
