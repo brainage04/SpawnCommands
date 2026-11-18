@@ -2011,7 +2011,7 @@ public final class SpawnCommandsGameTests {
     /** Every use counts against the player's allowance, cached name or not. */
     public static void spawnshareIsRateLimitedPerPlayer(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
-        CommandRateLimit limit = CommandRateLimit.of(server);
+        CommandRateLimit limit = CommandRateLimit.of(server, "spawncommands spawnshare");
         limit.clear();
         try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper");
                 GameTestPlayer guest = GameTestPlayer.join(helper, "SpawnGuest")) {
@@ -2582,13 +2582,21 @@ public final class SpawnCommandsGameTests {
      * sharing does, and several uses in one second would otherwise hit the rate limit.
      */
     private static int share(ServerPlayer player, String command) {
-        CommandRateLimit.clearAll(player.level().getServer());
+        // Only this mod's three allowances: clearAll would wipe every other mod's as well.
+        clearAllowances(player.level().getServer());
         return execute(player, command);
     }
 
     private static int share(CommandSourceStack source, String command) {
-        CommandRateLimit.clearAll(source.getServer());
+        clearAllowances(source.getServer());
         return execute(source, command);
+    }
+
+    /** Forgets this mod's three allowances, and no other mod's. */
+    private static void clearAllowances(MinecraftServer server) {
+        CommandRateLimit.of(server, "spawncommands spawnshare").clear();
+        CommandRateLimit.of(server, "spawncommands lookups").clear();
+        CommandRateLimit.of(server, "spawncommands listing").clear();
     }
 
     /**

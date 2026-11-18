@@ -224,7 +224,7 @@ public final class SpawnCommandRegistration {
      */
     private static boolean charged(
             MinecraftServer server, CommandSourceStack source, ServerPlayer owner) {
-        long wait = CommandRateLimit.of(server).refuse(owner.getUUID());
+        long wait = CommandRateLimit.of(server, "spawncommands spawnshare").refuse(owner.getUUID());
         if (wait == 0) return true;
         SpawnCommands.FEEDBACK.failure(
                 source, "You can use /spawnshare again in %s.", CommandRateLimit.describe(wait));
