@@ -2,6 +2,7 @@ package io.github.brainage04.spawncommands;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonParser;
@@ -25,6 +26,20 @@ class SpawnCommandsTest {
     static void bootstrapMinecraft() {
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
+    }
+
+    /**
+     * The lookup and its limiter live in BrainageLib, so every mod on the server shares one lookup thread
+     * and one share of Mojang's limit. A copy here would quietly take a second share.
+     */
+    @Test
+    void theLookupAndItsLimiterAreNotCopiedHere() {
+        for (String name : List.of("NameLookup", "ShareRateLimit")) {
+            assertThrows(
+                    ClassNotFoundException.class,
+                    () -> Class.forName("io.github.brainage04.spawncommands." + name),
+                    name + " must come from BrainageLib, not from this mod");
+        }
     }
 
     @Test
