@@ -12,6 +12,8 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import io.github.brainage04.brainagelib.help.HelpPage;
+import io.github.brainage04.brainagelib.lookup.CommandRateLimit;
+import io.github.brainage04.brainagelib.lookup.NameLookup;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -141,17 +143,17 @@ public final class SpawnCommandRegistration {
         }
         // /spawnof is not a share, so it has its own allowance: a guest who loops it must not be
         // able to spend the lookups /spawnshare needs.
-        long wait = ShareRateLimit.lookups(server).refuse(guest.getUUID());
+        long wait = CommandRateLimit.of(server, "spawncommands lookups").refuse(guest.getUUID());
         if (wait > 0) {
             return SpawnCommands.FEEDBACK.failure(
                     source,
                     "You can ask for a name to be looked up again in %s.",
-                    ShareRateLimit.describe(wait));
+                    CommandRateLimit.describe(wait));
         }
         SpawnCommands.FEEDBACK.neutral(source, "Looking up %s...", typed);
         UUID guestId = guest.getUUID();
         int[] outcome = {1};
-        NameLookup.of(server)
+        NameLookup.of(server, "SpawnCommands name lookup", SpawnCommands.LOGGER)
                 .lookup(
                         typed,
                         answer -> {
@@ -222,10 +224,10 @@ public final class SpawnCommandRegistration {
      */
     private static boolean charged(
             MinecraftServer server, CommandSourceStack source, ServerPlayer owner) {
-        long wait = ShareRateLimit.of(server).refuse(owner.getUUID());
+        long wait = CommandRateLimit.of(server).refuse(owner.getUUID());
         if (wait == 0) return true;
         SpawnCommands.FEEDBACK.failure(
-                source, "You can use /spawnshare again in %s.", ShareRateLimit.describe(wait));
+                source, "You can use /spawnshare again in %s.", CommandRateLimit.describe(wait));
         return false;
     }
 
@@ -291,7 +293,7 @@ public final class SpawnCommandRegistration {
         // The answer arrives on the server thread later, so the command's result is 1 (accepted)
         // unless the lookup answered before it returned, as a test's stub does.
         int[] outcome = {1};
-        NameLookup.of(server)
+        NameLookup.of(server, "SpawnCommands name lookup", SpawnCommands.LOGGER)
                 .lookup(
                         typed,
                         answer -> {
@@ -420,7 +422,7 @@ public final class SpawnCommandRegistration {
         if (!charged(server, source, owner)) return 0;
         SpawnCommands.FEEDBACK.neutral(source, "Looking up %s...", typed);
         int[] outcome = {1};
-        NameLookup.of(server)
+        NameLookup.of(server, "SpawnCommands name lookup", SpawnCommands.LOGGER)
                 .lookup(
                         typed,
                         answer -> {
@@ -520,10 +522,12 @@ public final class SpawnCommandRegistration {
             ServerPlayer owner,
             Component header,
             List<Component> lines) {
-        long wait = ShareRateLimit.listing(server).refuse(owner.getUUID());
+        long wait = CommandRateLimit.of(server, "spawncommands listing").refuse(owner.getUUID());
         if (wait > 0) {
             return SpawnCommands.FEEDBACK.failure(
-                    source, "You can ask for the list again in %s.", ShareRateLimit.describe(wait));
+                    source,
+                    "You can ask for the list again in %s.",
+                    CommandRateLimit.describe(wait));
         }
         SpawnCommands.FEEDBACK.neutral(source, header);
         for (Component line : lines) owner.sendSystemMessage(line);

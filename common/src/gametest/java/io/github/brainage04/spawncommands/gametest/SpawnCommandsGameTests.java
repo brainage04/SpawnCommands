@@ -6,8 +6,8 @@ import com.mojang.brigadier.suggestion.Suggestion;
 import io.github.brainage04.brainagelib.gametest.CapturedCommandOutput;
 import io.github.brainage04.brainagelib.gametest.GameTestPlayer;
 import io.github.brainage04.brainagelib.help.ServerModHelpRegistry;
-import io.github.brainage04.spawncommands.NameLookup;
-import io.github.brainage04.spawncommands.ShareRateLimit;
+import io.github.brainage04.brainagelib.lookup.CommandRateLimit;
+import io.github.brainage04.brainagelib.lookup.NameLookup;
 import io.github.brainage04.spawncommands.SpawnAccessData;
 import io.github.brainage04.spawncommands.SpawnCommands;
 import io.github.brainage04.spawncommands.SpawnTeleportService;
@@ -675,7 +675,8 @@ public final class SpawnCommandsGameTests {
                             name -> new NameLookup.Answer(NameLookup.Status.NOT_FOUND, null),
                             Runnable::run,
                             server::execute,
-                            server::isSameThread));
+                            server::isSameThread,
+                            SpawnCommands.LOGGER));
             try {
                 helper.assertTrue(
                         share(owner.player(), "spawnshare SpawnNeverSeen") == 0,
@@ -1705,7 +1706,8 @@ public final class SpawnCommandsGameTests {
                             name -> new NameLookup.Answer(NameLookup.Status.NOT_FOUND, null),
                             Runnable::run,
                             server::execute,
-                            server::isSameThread));
+                            server::isSameThread,
+                            SpawnCommands.LOGGER));
             guest.clearMessages();
             try {
                 helper.assertTrue(
@@ -1829,7 +1831,8 @@ public final class SpawnCommandsGameTests {
                                         NameLookup.Status.FOUND, new NameAndId(profile)),
                         pending::set,
                         server::execute,
-                        server::isSameThread));
+                        server::isSameThread,
+                        SpawnCommands.LOGGER));
         SpawnAccessData access = SpawnAccessData.get(server);
         // Closed inside the final step, which runs after this method has returned.
         GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper");
@@ -1900,7 +1903,8 @@ public final class SpawnCommandsGameTests {
                         },
                         Runnable::run,
                         server::execute,
-                        server::isSameThread));
+                        server::isSameThread,
+                        SpawnCommands.LOGGER));
         SpawnAccessData access = SpawnAccessData.get(server);
         try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
             ServerPlayer player = owner.player();
@@ -1940,7 +1944,8 @@ public final class SpawnCommandsGameTests {
                         name -> new NameLookup.Answer(NameLookup.Status.NOT_FOUND, null),
                         Runnable::run,
                         server::execute,
-                        server::isSameThread));
+                        server::isSameThread,
+                        SpawnCommands.LOGGER));
         SpawnAccessData access = SpawnAccessData.get(server);
         try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
             ServerPlayer player = owner.player();
@@ -1977,7 +1982,8 @@ public final class SpawnCommandsGameTests {
                         name -> new NameLookup.Answer(NameLookup.Status.FAILED, null),
                         Runnable::run,
                         server::execute,
-                        server::isSameThread));
+                        server::isSameThread,
+                        SpawnCommands.LOGGER));
         SpawnAccessData access = SpawnAccessData.get(server);
         try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
             ServerPlayer player = owner.player();
@@ -2005,7 +2011,7 @@ public final class SpawnCommandsGameTests {
     /** Every use counts against the player's allowance, cached name or not. */
     public static void spawnshareIsRateLimitedPerPlayer(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
-        ShareRateLimit limit = ShareRateLimit.of(server);
+        CommandRateLimit limit = CommandRateLimit.of(server);
         limit.clear();
         try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper");
                 GameTestPlayer guest = GameTestPlayer.join(helper, "SpawnGuest")) {
@@ -2040,7 +2046,8 @@ public final class SpawnCommandsGameTests {
                         name -> new NameLookup.Answer(NameLookup.Status.NOT_FOUND, null),
                         Runnable::run,
                         server::execute,
-                        server::isSameThread));
+                        server::isSameThread,
+                        SpawnCommands.LOGGER));
         SpawnAccessData access = SpawnAccessData.get(server);
         UUID renamed = UUID.randomUUID();
         UUID holder = UUID.randomUUID();
@@ -2139,7 +2146,8 @@ public final class SpawnCommandsGameTests {
                         },
                         Runnable::run,
                         server::execute,
-                        server::isSameThread));
+                        server::isSameThread,
+                        SpawnCommands.LOGGER));
         SpawnAccessData access = SpawnAccessData.get(server);
         UUID stranger = UUID.randomUUID();
         try (GameTestPlayer owner = GameTestPlayer.join(helper, "SpawnKeeper")) {
@@ -2574,12 +2582,12 @@ public final class SpawnCommandsGameTests {
      * sharing does, and several uses in one second would otherwise hit the rate limit.
      */
     private static int share(ServerPlayer player, String command) {
-        ShareRateLimit.clearAll(player.level().getServer());
+        CommandRateLimit.clearAll(player.level().getServer());
         return execute(player, command);
     }
 
     private static int share(CommandSourceStack source, String command) {
-        ShareRateLimit.clearAll(source.getServer());
+        CommandRateLimit.clearAll(source.getServer());
         return execute(source, command);
     }
 
