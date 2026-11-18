@@ -2023,8 +2023,8 @@ public final class SpawnCommandsGameTests {
             helper.assertTrue(
                     execute(player, "spawnshare " + guest.player().getScoreboardName()) == 0,
                     "A second use in the same second must be refused");
-            // The use must land on this mod's own allowance: a revert to of(server) would charge the
-            // server-wide one, which /sharehome also uses, and this handle would stay clean.
+            // A revert to of(server) would charge the library's unnamed allowance, which this
+            // handle does not read, so the step would still pass.
             helper.assertTrue(
                     limit.refuse(player.getUUID()) > 0,
                     "The use must be charged to this mod's own allowance");
@@ -2587,7 +2587,6 @@ public final class SpawnCommandsGameTests {
      * sharing does, and several uses in one second would otherwise hit the rate limit.
      */
     private static int share(ServerPlayer player, String command) {
-        // Only this mod's three allowances: clearAll would wipe every other mod's as well.
         clearAllowances(player.level().getServer());
         return execute(player, command);
     }
@@ -2597,7 +2596,10 @@ public final class SpawnCommandsGameTests {
         return execute(source, command);
     }
 
-    /** Forgets this mod's three allowances, and no other mod's. */
+    /**
+     * Forgets this mod's three allowances, and no other mod's: clearAll would wipe every other
+     * mod's as well, including BrainageLib's own GameTest allowances.
+     */
     private static void clearAllowances(MinecraftServer server) {
         CommandRateLimit.of(server, "spawncommands spawnshare").clear();
         CommandRateLimit.of(server, "spawncommands lookups").clear();
