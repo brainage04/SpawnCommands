@@ -1,6 +1,6 @@
 # Modrinth and CurseForge publishing
 
-SpawnCommands publishes both loader JARs from one release. `.github/workflows/release.yml` holds a single job that calls the shared multi-loader release workflow in `brainage04/MinecraftModConventions`, pinned at `v3.4.0`.
+SpawnCommands publishes both loader JARs from one release. `.github/workflows/release.yml` holds a single job that calls the shared multi-loader release workflow in `brainage04/MinecraftModConventions`, pinned at `v3.5.0`.
 
 ## When it runs
 
